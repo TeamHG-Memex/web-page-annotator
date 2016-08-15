@@ -52,13 +52,20 @@ class ProxyHandler(web.RequestHandler):
 
 
 def transform_html(html: bytes) -> bytes:
-    # TODO - maybe in 99% cases we can find end of body by hand?
     soup = BeautifulSoup(html, 'lxml')
-    body = soup.find('body')
-    script = soup.new_tag('script', type='text/javascript')
-    injected = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
-    script.string = injected
-    body.append(script)
+
+    js_tag = soup.new_tag('script', type='text/javascript')
+    injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
+    js_tag.string = injected_js
+    soup.find('body').append(js_tag)
+
+    css_tag = soup.new_tag('style')
+    injected_css = (
+        Path(STATIC_ROOT) / 'css' / 'injected.css').read_text('utf8')
+    css_tag.string = injected_css
+    # TODO - create "head" if none exists
+    soup.find('head').append(css_tag)
+
     return soup.encode()
 
 
