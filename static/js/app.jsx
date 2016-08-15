@@ -128,8 +128,9 @@ var Label = React.createClass({
         return <a href="#!" className="collection-item" onClick={ this.onClick }>
             { this.props.text }</a>;
     },
-    onClick: function () {
+    onClick: function (event) {
         this.props.onLabelSelected(this.props.text);
+        event.preventDefault();
     }
 });
 
