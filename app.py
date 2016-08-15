@@ -1,18 +1,23 @@
 #!/usr/bin/env python
-import os.path
 import argparse
 from pathlib import Path
 from urllib.parse import urlsplit, urljoin, unquote, urlencode
 
 from bs4 import BeautifulSoup
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 import tornado.ioloop
 from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
 
+from models import Base, get_response, save_response
 
-ROOT = os.path.dirname(__file__)
-STATIC_ROOT = os.path.join(ROOT, 'static')
+
+ROOT = Path(__file__).parent
+STATIC_ROOT = ROOT / 'static'
+
+Session = sessionmaker()
 
 
 class MainHandler(web.RequestHandler):
@@ -45,8 +50,12 @@ class ProxyHandler(web.RequestHandler):
                     return
 
         httpclient = AsyncHTTPClient()
-        # TODO - check status, set headers?
-        response = yield httpclient.fetch(path)
+        session = Session()
+        response = get_response(session, path)
+        if response is None:
+            response = yield httpclient.fetch(path, raise_error=False)
+            save_response(session, path, response)
+
         body = response.body
         content_type = response.headers['content-type']
         html_transformed = False
@@ -111,8 +120,11 @@ def main():
         ],
         debug=args.debug,
         static_prefix='/static/',
-        static_path=STATIC_ROOT,
+        static_path=str(STATIC_ROOT),
     )
+    engine = create_engine('sqlite:///{}'.format(ROOT / 'db.sqlite'))
+    Session.configure(bind=engine)
+    Base.metadata.create_all(engine)
     app.listen(args.port)
     tornado.ioloop.IOLoop.current().start()
 
