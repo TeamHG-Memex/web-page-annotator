@@ -1,4 +1,9 @@
-.web-annotator-highlight {
+.web-page-annotator-highlight {
     background-color: yellow !important;
     outline: 2px solid red !important;
+}
+
+.web-page-annotator-selected {
+    background-color: green !important;
+    outline: 2px solid darkgreen !important;
 }

@@ -60,12 +60,21 @@ var App = React.createClass({
     },
     onLabelElement: function (event) {
         var data = event.data;
-        this.setState(Object.assign({}, this.state, {
-            labelAt: {x: data.pageX, y: data.pageY}}));
+        console.log('onLabelElement', data);
+        this.setState(Object.assign({}, this.state, {labelAt: data}));
     },
     onLabelSelected: function (text) {
-        // TODO
+        var label = {text: text, selector: this.state.labelAt.selector};
+        this.notifyChild(label);
+        // TODO - save label in self.state
         this.onCloseLabels();
+    },
+    notifyChild: function (label) {
+        var eventToChild = document.createEvent('Event');
+        eventToChild.initEvent('label-selected', true, true);
+        eventToChild.data = label;
+        document.getElementById('child-page').contentWindow
+            .document.body.dispatchEvent(eventToChild);
     },
     onCloseLabels: function () {
         this.setState(Object.assign({}, this.state, {labelAt: null}));
