@@ -60,14 +60,14 @@ class ProxyHandler(web.RequestHandler):
         content_type = response.headers['content-type']
         html_transformed = False
         if content_type.startswith('text/html'):
-            html_transformed = True
             encoding = http_content_type_encoding(content_type)
-            body = transform_html(body, encoding)
+            body, html_transformed = transform_html(body, encoding)
 
         self.write(body)
         for k, v in response.headers.get_all():
             if k.lower() not in {'content-length', 'set-cookie'}:
                 if html_transformed and k.lower() == 'content-type':
+                    # change encoding (always utf8 now)
                     v = 'text/html; charset=UTF-8'
                 self.set_header(k, v)
         self.finish()
@@ -77,7 +77,7 @@ def transform_html(html: bytes, encoding: str) -> bytes:
     soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
     body = soup.find('body')
     if not body:
-        return html
+        return html, False
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
@@ -91,7 +91,7 @@ def transform_html(html: bytes, encoding: str) -> bytes:
     # TODO - create "head" if none exists
     soup.find('head').append(css_tag)
 
-    return soup.encode()
+    return soup.encode(), True
 
 
 def is_full(url: str) -> bool:
