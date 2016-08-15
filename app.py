@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import tornado.ioloop
 from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
+from w3lib.encoding import http_content_type_encoding
 
 
 ROOT = os.path.dirname(__file__)
@@ -27,6 +28,7 @@ class ProxyHandler(web.RequestHandler):
             path += '?' + urlencode(
                 [(k, v) for k, vs in self.request.arguments.items()
                  for v in vs])
+
         headers = self.request.headers.copy()
         for field in ['cookie', 'referrer']:
             try: del headers[field]
@@ -41,23 +43,37 @@ class ProxyHandler(web.RequestHandler):
                     # FIXME - do we loose referrer here?
                     self.redirect('/' + path)
                     return
+
         httpclient = AsyncHTTPClient()
         # TODO - check status, set headers?
         response = yield httpclient.fetch(path)
         body = response.body
-        if response.headers['content-type'].startswith('text/html'):
-            body = transform_html(body)
+        content_type = response.headers['content-type']
+        html_transformed = False
+        if content_type.startswith('text/html'):
+            html_transformed = True
+            encoding = http_content_type_encoding(content_type)
+            body = transform_html(body, encoding)
+
         self.write(body)
+        for k, v in response.headers.get_all():
+            if k.lower() not in {'content-length', 'set-cookie'}:
+                if html_transformed and k.lower() == 'content-type':
+                    v = 'text/html; charset=UTF-8'
+                self.set_header(k, v)
         self.finish()
 
 
-def transform_html(html: bytes) -> bytes:
-    soup = BeautifulSoup(html, 'lxml')
+def transform_html(html: bytes, encoding: str) -> bytes:
+    soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
+    body = soup.find('body')
+    if not body:
+        return html
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
     js_tag.string = injected_js
-    soup.find('body').append(js_tag)
+    body.append(js_tag)
 
     css_tag = soup.new_tag('style')
     injected_css = (
