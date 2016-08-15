@@ -7,3 +7,7 @@
     text-align: center;
     margin: 2px;
 }
+
+.label-dropdown {
+    position: absolute;
+}

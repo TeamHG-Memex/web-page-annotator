@@ -4,26 +4,20 @@
     <link href="http://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link type="text/css" rel="stylesheet" href="{{ static_url('css/materialize.min.css') }}" media="screen,projection"/>
     <link type="text/css" rel="stylesheet" href="{{ static_url('css/style.css') }}" media="screen,projection"/>
+    <script src="{{ static_url('js/react.min.js') }}"></script>
+    <script src="{{ static_url('js/react-dom.min.js') }}"></script>
+    <script src="https://npmcdn.com/babel-core@5.8.38/browser.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </head>
 
 <body>
 
-<div id="controls">
-    <a class="waves-effect waves-light btn"><i class="material-icons left">skip_previous</i>prev</a>
-    <a class="waves-effect waves-light btn">reload</a>
-    <div class="chip url-chip">http://risk.ru</div>
-    <a class="waves-effect waves-light btn"><i class="material-icons right">skip_next</i>next</a>
-    <a class="waves-effect waves-light btn">import urls</a>
-    <a class="waves-effect waves-light btn">export pages & labels</a>
-</div>
-
-<iframe id="child-page" src="{{ reverse_url('proxy', 'http://risk.ru') }}" width="1000" height="600">
-</iframe>
+<div id="app"></div>
 
 <script type="text/javascript" src="{{ static_url('js/jquery-2.1.1.min.js') }}"></script>
 <script type="text/javascript" src="{{ static_url('js/materialize.min.js') }}"></script>
-<script type="text/javascript" src="{{ static_url('js/parent.js') }}"></script>
+<script type="text/babel" src="{{ static_url('js/app.jsx') }}"></script>
+
 </body>
 </html>
 
