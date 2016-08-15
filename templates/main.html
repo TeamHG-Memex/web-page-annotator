@@ -11,13 +11,16 @@
 
 Here is the iframe:
 
+<div style="background: red; position: absolute">A divvv</div>
+
 <br/>
 
-<iframe src="{{ reverse_url('proxy', 'http://twitter.com') }}" width="1000" height="600">
+<iframe src="{{ reverse_url('proxy', 'http://risk.ru') }}" width="1000" height="600">
 </iframe>
 
 <script type="text/javascript" src="{{ static_url('js/jquery-2.1.1.min.js') }}"></script>
 <script type="text/javascript" src="{{ static_url('js/materialize.min.js') }}"></script>
+<script type="text/javascript" src="{{ static_url('js/parent.js') }}"></script>
 </body>
 </html>
 
