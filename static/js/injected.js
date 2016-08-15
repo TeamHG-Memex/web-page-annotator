@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('contextmenu', function (event) {
-        console.log('contextmenu', event);
         var eventToParent = document.createEvent('Event');
         eventToParent.initEvent('label-element', true, true);
         eventToParent.data = {
@@ -11,6 +10,12 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         window.parent.document.body.dispatchEvent(eventToParent);
         event.preventDefault();
+    });
+
+    document.body.addEventListener('click', function (event) {
+        var eventToParent = document.createEvent('Event');
+        eventToParent.initEvent('close-labels', true, true);
+        window.parent.document.body.dispatchEvent(eventToParent);
     });
 
     var prevHlElement = null;

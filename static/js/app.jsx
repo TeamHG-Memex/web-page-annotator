@@ -11,6 +11,7 @@ var App = React.createClass({
             labelDropdown = <LabelDropdown
                 labels={ this.props.labels }
                 position={ this.state.labelAt }
+                onLabelSelected={ this.onLabelSelected }
                 />
         }
         var url = this.props.urls[this.state.idx];
@@ -58,17 +59,24 @@ var App = React.createClass({
         return this.state.idx < (this.props.urls.length - 1);
     },
     onLabelElement: function (event) {
-        console.log('onLabelElement', event);
         var data = event.data;
-        var state = Object.assign({}, this.state);
-        state.labelAt = {x: data.pageX, y: data.pageY};
-        this.setState(state);
+        this.setState(Object.assign({}, this.state, {
+            labelAt: {x: data.pageX, y: data.pageY}}));
+    },
+    onLabelSelected: function (text) {
+        // TODO
+        this.onCloseLabels();
+    },
+    onCloseLabels: function () {
+        this.setState(Object.assign({}, this.state, {labelAt: null}));
     },
     componentDidMount: function () {
         document.body.addEventListener('label-element', this.onLabelElement);
+        document.body.addEventListener('close-labels', this.onCloseLabels);
     },
     componentWillUnmount: function () {
         document.body.removeEventListener('label-element', this.onLabelElement);
+        document.body.removeEventListener('close-labels', this.onCloseLabels);
     }
 });
 
@@ -91,8 +99,8 @@ var IFrame = React.createClass({
 var LabelDropdown = React.createClass({
     render: function () {
         var labels = this.props.labels.map(function (text) {
-            return <a href="#!" className="collection-item">{ text }</a>;
-        });
+            return <Label text={ text } onLabelSelected={ this.props.onLabelSelected }/>;
+        }.bind(this));
         var position = this.props.position;
         return <div
             ref={function (div) {
@@ -106,7 +114,17 @@ var LabelDropdown = React.createClass({
     }
 });
 
-var labels = ['foo', 'bar', 'bazz'];
+var Label = React.createClass({
+    render: function () {
+        return <a href="#!" className="collection-item" onClick={ this.onClick }>
+            { this.props.text }</a>;
+    },
+    onClick: function () {
+        this.props.onLabelSelected(this.props.text);
+    }
+});
+
+var labels = ['Title', 'Body', 'Author', 'Date'];
 var urls = ['http://risk.ru', 'http://twitter.com', 'http://google.com'];
 
 ReactDOM.render(
