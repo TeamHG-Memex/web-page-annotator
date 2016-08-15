@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 import os.path
 import argparse
-
+from pathlib import Path
 from urllib.parse import urlsplit, urljoin, unquote, urlencode
+
+from bs4 import BeautifulSoup
 import tornado.ioloop
 from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
 
 
 ROOT = os.path.dirname(__file__)
+STATIC_ROOT = os.path.join(ROOT, 'static')
 
 
 class MainHandler(web.RequestHandler):
@@ -41,15 +44,29 @@ class ProxyHandler(web.RequestHandler):
         httpclient = AsyncHTTPClient()
         # TODO - check status, set headers?
         response = yield httpclient.fetch(path)
-        self.write(response.body)
+        body = response.body
+        if response.headers['content-type'].startswith('text/html'):
+            body = transform_html(body)
+        self.write(body)
         self.finish()
 
 
-def is_full(url):
+def transform_html(html: bytes) -> bytes:
+    # TODO - maybe in 99% cases we can find end of body by hand?
+    soup = BeautifulSoup(html, 'lxml')
+    body = soup.find('body')
+    script = soup.new_tag('script', type='text/javascript')
+    injected = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
+    script.string = injected
+    body.append(script)
+    return soup.encode()
+
+
+def is_full(url: str) -> bool:
     return url.startswith('http://') or url.startswith('https://')
 
 
-def fixed_full_url(url):
+def fixed_full_url(url: str) -> str:
     # TODO - do it properly, this must be tornado removing slash
     if not is_full(url):
         if url.startswith('http:/'):
@@ -71,7 +88,7 @@ def main():
         ],
         debug=args.debug,
         static_prefix='/static/',
-        static_path=os.path.join(ROOT, 'static'),
+        static_path=STATIC_ROOT,
     )
     app.listen(args.port)
     tornado.ioloop.IOLoop.current().start()
