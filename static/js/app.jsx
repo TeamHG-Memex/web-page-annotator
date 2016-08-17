@@ -3,9 +3,11 @@ var App = React.createClass({
         return {
             idx: 0,
             labelAt: null,
+            labeled: {}  // url -> selector -> labelData
         };
     },
     render: function () {
+        console.log('App.render', this.state);
         var labelDropdown;
         if (this.state.labelAt) {
             labelDropdown = <LabelDropdown
@@ -14,8 +16,9 @@ var App = React.createClass({
                 onLabelSelected={ this.onLabelSelected }
                 />
         }
-        var url = this.props.urls[this.state.idx];
+        var url = this.currentUrl();
         var btnClasses = 'waves-effect waves-light btn';
+        var labeled = this.state.labeled[url];
         return <div>
             <div id="controls">
                 <a className={ btnClasses } onClick={ this.onReload }>reload</a>{' '}
@@ -31,23 +34,28 @@ var App = React.createClass({
                 <a className={ btnClasses + ' disabled' }>import urls</a>{' '}
                 <a className={ btnClasses + ' disabled' }>export pages & labels</a>{' '}
             </div>
-            <IFrame url={ url }/>
+            <IFrame url={ url } labeled={ labeled }/>
             { labelDropdown }
         </div>;
     },
-    onPrevious: function () {
+    currentUrl: function () {
+        return this.props.urls[this.state.idx];
+    },
+    onPrevious: function (event) {
         if (this.previousEnabled()) {
             var state = Object.assign({}, this.state);
             state.idx -= 1;
             this.setState(state);
         }
+        event.preventDefault();
     },
-    onNext: function () {
+    onNext: function (event) {
         if (this.nextEnabled()) {
             var state = Object.assign({}, this.state);
             state.idx += 1;
             this.setState(state);
         }
+        event.preventDefault();
     },
     onReload: function () {
         window.alert('TODO');
@@ -64,17 +72,13 @@ var App = React.createClass({
         this.setState(Object.assign({}, this.state, {labelAt: data}));
     },
     onLabelSelected: function (text) {
-        var label = {text: text, selector: this.state.labelAt.selector};
-        this.notifyChild(label);
-        // TODO - save label in self.state
-        this.onCloseLabels();
-    },
-    notifyChild: function (label) {
-        var eventToChild = document.createEvent('Event');
-        eventToChild.initEvent('label-selected', true, true);
-        eventToChild.data = label;
-        document.getElementById('child-page').contentWindow
-            .document.body.dispatchEvent(eventToChild);
+        var labelData = {text: text, selector: this.state.labelAt.selector};
+        // notifyChildOfLabel(labelData);
+        var url = this.currentUrl();
+        var labeled = Object.assign({}, this.state.labeled);
+        labeled[url] = Object.assign({}, labeled[url] || {});
+        labeled[url][labelData.selector] = labelData;
+        this.setState({labeled: labeled, labelAt: null});
     },
     onCloseLabels: function () {
         this.setState(Object.assign({}, this.state, {labelAt: null}));
@@ -89,20 +93,36 @@ var App = React.createClass({
     }
 });
 
+function notifyChildOfLabel(labelData) {
+    var eventToChild = document.createEvent('Event');
+    eventToChild.initEvent('label-selected', true, true);
+    eventToChild.data = labelData;
+    document.getElementById('child-page').contentWindow
+        .document.body.dispatchEvent(eventToChild);
+}
+
 var IFrame = React.createClass({
     render: function () {
         // TODO (later): handle resize
         return <iframe id="child-page"
                        src={ '/' + this.props.url }
-                       ref={function (iframe) {
-                           if (iframe) {
-                               var iframeRect = iframe.getBoundingClientRect();
-                               iframe.style.height = (window.innerHeight - iframeRect.top) + 'px';
-                               iframe.style.width = window.innerWidth + 'px';
-                           }
-                       }}>
+                       ref={ this.ref.bind(this) }
+                       >
         </iframe>;
     },
+    ref: function (iframe) {
+        if (iframe) {
+            var iframeRect = iframe.getBoundingClientRect();
+            iframe.style.height = (window.innerHeight - iframeRect.top) + 'px';
+            iframe.style.width = window.innerWidth + 'px';
+            var labeled = this.props.labeled;
+            if (labeled) {
+                Object.keys(labeled).forEach(function (selector) {
+                    notifyChildOfLabel(labeled[selector]);
+                });
+            }
+        }
+    }
 });
 
 var LabelDropdown = React.createClass({
@@ -138,6 +158,6 @@ var labels = ['Title', 'Body', 'Author', 'Date'];
 var urls = ['http://risk.ru', 'http://twitter.com', 'http://google.com'];
 
 ReactDOM.render(
-    <App urls={ urls } labels={ labels } labelAt={ {x: 100, y: 100} }/>,
+    <App urls={ urls } labels={ labels }/>,
     document.getElementById('app')
 );
