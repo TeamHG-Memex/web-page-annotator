@@ -2,6 +2,7 @@ var App = React.createClass({
     getInitialState: function () {
         return {
             idx: 0,
+            labels: [],
             urls: [],
             importingUrls: false,
             labelAt: null,
@@ -19,7 +20,7 @@ var App = React.createClass({
                     labelValue = urlLabeled[this.state.labelAt.selector];
                 }
                 labelDropdown = <LabelDropdown
-                    labels={ this.props.labels }
+                    labels={ this.state.labels }
                     position={ this.state.labelAt }
                     value={ labelValue }
                     onLabelFinishEdit={ this.onLabelFinishEdit }
@@ -31,6 +32,7 @@ var App = React.createClass({
         if (this.state.importingUrls) {
             urlsImport = <UrlsImport
                 urls={ this.state.urls }
+                labels={ this.state.labels }
                 cancelImportUrls={ this.cancelImportUrls }
                 doImportUrls={ this.doImportUrls }/>;
         }
@@ -82,8 +84,11 @@ var App = React.createClass({
     onImportUrls: function () {
         this.setState({importingUrls: true});
     },
-    doImportUrls: function (urls) {
-        this.setState({importingUrls: false, urls: urls});
+    doImportUrls: function (updated) {
+        if (this.state.idx >= updated.urls.length) {
+            updated.idx = 0;
+        }
+        this.setState(updated);
     },
     cancelImportUrls: function () {
         this.setState({importingUrls: false});
@@ -206,11 +211,18 @@ var Label = React.createClass({
 
 var UrlsImport = React.createClass({
     getInitialState: function () {
-        return {urls_text: this.props.urls.join('\n')};
+        return {
+            urls_text: this.props.urls.join('\n'),
+            labels_text: this.props.labels.join('\n')
+        };
     },
     render: function () {
         // TODO - this should be a dialog
         return <div>
+            <label>Lables (one on a line)</label>
+            <textarea name="labels" onChange={ this.updateLabels }>
+                { this.state.labels_text }</textarea>
+            <label>Urls (one on a line)</label>
             <textarea name="urls" onChange={ this.updateUrls }>
                 { this.state.urls_text }</textarea>
             <a className="waves-effect waves-light btn"
@@ -222,9 +234,15 @@ var UrlsImport = React.createClass({
     updateUrls: function (event) {
         this.setState({urls_text: event.target.value});
     },
+    updateLabels: function (event) {
+        this.setState({labels_text: event.target.value});
+    },
     onImport: function (event) {
         event.preventDefault();
-        this.props.doImportUrls(this.state.urls_text.split('\n'));
+        this.props.doImportUrls({
+            urls: this.state.urls_text.split('\n'),
+            labels: this.state.labels_text.split('\n')
+        });
     },
     onCancel: function (event) {
         event.preventDefault();
@@ -232,9 +250,10 @@ var UrlsImport = React.createClass({
     }
 });
 
-var labels = ['Title', 'Body', 'Author', 'Date'];
+// var labels = ['Title', 'Body', 'Author', 'Date'];
+// var urls = ['http://risk.ru', 'http://google.com', 'http://twitter.com'];
 
 ReactDOM.render(
-    <App labels={ labels }/>,
+    <App/>,
     document.getElementById('app')
 );
