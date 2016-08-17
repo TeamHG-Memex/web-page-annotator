@@ -67,7 +67,6 @@ var App = React.createClass({
     },
     onLabelSelected: function (text) {
         var labelData = {text: text, selector: this.state.labelAt.selector};
-        // notifyChildOfLabel(labelData);
         var url = this.currentUrl();
         var labeled = Object.assign({}, this.state.labeled);
         labeled[url] = Object.assign({}, labeled[url] || {});
@@ -87,12 +86,12 @@ var App = React.createClass({
     }
 });
 
-function notifyChildOfLabel(labelData) {
+function notifyChildOfLabel(labelData, iframe) {
     var eventToChild = document.createEvent('Event');
     eventToChild.initEvent('label-selected', true, true);
     eventToChild.data = labelData;
-    document.getElementById('child-page').contentWindow
-        .document.body.dispatchEvent(eventToChild);
+    iframe = iframe || document.getElementById('child-page');
+    iframe.contentDocument.body.dispatchEvent(eventToChild);
 }
 
 var IFrame = React.createClass({
@@ -111,9 +110,18 @@ var IFrame = React.createClass({
             iframe.style.width = window.innerWidth + 'px';
             var labeled = this.props.labeled;
             if (labeled) {
-                Object.keys(labeled).forEach(function (selector) {
-                    notifyChildOfLabel(labeled[selector]);
-                });
+                var notifyChild = function () {
+                    Object.keys(labeled).forEach(function (selector) {
+                        notifyChildOfLabel(labeled[selector], iframe);
+                    });
+                };
+                if (iframe.contentWindow.location.pathname != '/' + this.props.url) {
+                    // FIXME - this is a gross hack. At least, we should determine
+                    // when the child iframe has switched location and loaded DOM
+                    window.setTimeout(notifyChild, 1000);
+                } else {
+                    notifyChild();
+                }
             }
         }
     }

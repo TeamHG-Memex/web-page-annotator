@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // TODO - do we need to remove listeners in beforeunload event?
 
     document.body.addEventListener('contextmenu', function (event) {
         var eventToParent = document.createEvent('Event');
@@ -20,8 +21,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.body.addEventListener('label-selected', function (event) {
-        var data = event.data;
-        var el = document.querySelector(data.selector);
+        var labelData = event.data;
+        var el = document.querySelector(labelData.selector);
         el.classList.add('web-page-annotator-selected');
         // TODO - different colors for different labels, or add text? Or both
     });
