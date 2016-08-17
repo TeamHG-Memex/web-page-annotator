@@ -57,7 +57,7 @@ class ProxyHandler(web.RequestHandler):
             save_response(session, path, response)
 
         body = response.body
-        content_type = response.headers['content-type']
+        content_type = response.headers.get('content-type', '')
         html_transformed = False
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)

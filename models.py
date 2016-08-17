@@ -1,6 +1,6 @@
 import json
 
-from sqlalchemy import Column, Integer, Text, LargeBinary
+from sqlalchemy import Column, Integer, Text, LargeBinary, ForeignKey
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from tornado.httpclient import HTTPResponse
@@ -30,6 +30,15 @@ class Response(Base):
 
     def __repr__(self):
         return '<Response "{}">'.format(self.url)
+
+
+class ElementLabel(Base):
+    __tablename__ = 'element_labels'
+
+    id = Column(Integer, primary_key=True)
+    response = Column(ForeignKey(Response.id))
+    selector = Column(Text)
+    label = Column(Text)  # TODO - fk to Label
 
 
 def dump_headers(headers: HTTPHeaders) -> str:
