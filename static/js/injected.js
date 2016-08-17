@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.body.addEventListener('contextmenu', function (event) {
         var eventToParent = document.createEvent('Event');
-        eventToParent.initEvent('label-element', true, true);
+        eventToParent.initEvent('labelStartEdit', true, true);
         eventToParent.data = {
             x: event.clientX,
             y: event.clientY,
@@ -16,11 +16,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // TODO - same for Esc
     document.body.addEventListener('click', function (event) {
         var eventToParent = document.createEvent('Event');
-        eventToParent.initEvent('close-labels', true, true);
+        eventToParent.initEvent('labelDiscardEdit', true, true);
         window.parent.document.body.dispatchEvent(eventToParent);
     });
 
-    document.body.addEventListener('label-selected', function (event) {
+    document.body.addEventListener('labelFinishEdit', function (event) {
         var labelData = event.data;
         var el = document.querySelector(labelData.selector);
         // TODO - different colors for different labels, or add text? Or both

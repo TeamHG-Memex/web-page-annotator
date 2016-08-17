@@ -82,22 +82,22 @@ var App = React.createClass({
         labeled[url][labelData.selector] = labelData;
         this.setState({labeled: labeled, labelAt: null});
     },
-    onCloseLabels: function () {
+    onLabelDiscardEdit: function () {
         this.setState({labelAt: null});
     },
     componentDidMount: function () {
-        document.body.addEventListener('label-element', this.onLabelStartEdit);
-        document.body.addEventListener('close-labels', this.onCloseLabels);
+        document.body.addEventListener('labelStartEdit', this.onLabelStartEdit);
+        document.body.addEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
     },
     componentWillUnmount: function () {
-        document.body.removeEventListener('label-element', this.onLabelStartEdit);
-        document.body.removeEventListener('close-labels', this.onCloseLabels);
+        document.body.removeEventListener('labelStartEdit', this.onLabelStartEdit);
+        document.body.removeEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
     }
 });
 
 function notifyChildOfLabel(labelData, iframe) {
     var eventToChild = document.createEvent('Event');
-    eventToChild.initEvent('label-selected', true, true);
+    eventToChild.initEvent('labelFinishEdit', true, true);
     eventToChild.data = labelData;
     iframe = iframe || document.getElementById('child-page');
     iframe.contentDocument.body.dispatchEvent(eventToChild);
