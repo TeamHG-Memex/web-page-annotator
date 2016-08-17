@@ -1,9 +1,10 @@
-var App = React.createClass({
+var Workspace = React.createClass({
     getInitialState: function () {
         return {
-            idx: 0,
+            name: 'Untitled',
             labels: [],
             urls: [],
+            urlIdx: 0,
             importingUrls: false,
             labelAt: null,
             labeled: {}  // url -> selector -> labelData
@@ -31,6 +32,7 @@ var App = React.createClass({
         }
         if (this.state.importingUrls) {
             urlsImport = <UrlsImport
+                name={ this.state.name }
                 urls={ this.state.urls }
                 labels={ this.state.labels }
                 cancelImportUrls={ this.cancelImportUrls }
@@ -63,18 +65,18 @@ var App = React.createClass({
     },
     currentUrl: function () {
         if (this.state.urls.length > 0) {
-            return this.state.urls[this.state.idx];
+            return this.state.urls[this.state.urlIdx];
         }
     },
     onPrevious: function (event) {
         if (this.previousEnabled()) {
-            this.setState({idx: this.state.idx - 1});
+            this.setState({urlIdx: this.state.urlIdx - 1});
         }
         event.preventDefault();
     },
     onNext: function (event) {
         if (this.nextEnabled()) {
-            this.setState({idx: this.state.idx + 1});
+            this.setState({urlIdx: this.state.urlIdx + 1});
         }
         event.preventDefault();
     },
@@ -85,8 +87,8 @@ var App = React.createClass({
         this.setState({importingUrls: true});
     },
     doImportUrls: function (updated) {
-        if (this.state.idx >= updated.urls.length) {
-            updated.idx = 0;
+        if (this.state.urlIdx >= updated.urls.length) {
+            updated.urlIdx = 0;
         }
         this.setState(updated);
     },
@@ -94,10 +96,10 @@ var App = React.createClass({
         this.setState({importingUrls: false});
     },
     previousEnabled: function () {
-        return this.state.idx > 0;
+        return this.state.urlIdx > 0;
     },
     nextEnabled: function () {
-        return this.state.idx < (this.state.urls.length - 1);
+        return this.state.urlIdx < (this.state.urls.length - 1);
     },
     reloadEnabled: function () {
         return Boolean(this.currentUrl());
@@ -212,6 +214,7 @@ var Label = React.createClass({
 var UrlsImport = React.createClass({
     getInitialState: function () {
         return {
+            name: this.props.name,
             urls_text: this.props.urls.join('\n'),
             labels_text: this.props.labels.join('\n')
         };
@@ -219,6 +222,10 @@ var UrlsImport = React.createClass({
     render: function () {
         // TODO - this should be a dialog
         return <div>
+            <label>Workspace name</label>
+            <input type="text"
+                   onChange={ this.updateName }
+                   value={ this.state.name }/>
             <label>Lables (one on a line)</label>
             <textarea name="labels" onChange={ this.updateLabels }>
                 { this.state.labels_text }</textarea>
@@ -237,9 +244,13 @@ var UrlsImport = React.createClass({
     updateLabels: function (event) {
         this.setState({labels_text: event.target.value});
     },
+    updateName: function (event) {
+        this.setState({name: event.target.value});
+    },
     onImport: function (event) {
         event.preventDefault();
         this.props.doImportUrls({
+            name: this.state.name,
             urls: this.state.urls_text.split('\n'),
             labels: this.state.labels_text.split('\n')
         });
@@ -254,6 +265,6 @@ var UrlsImport = React.createClass({
 // var urls = ['http://risk.ru', 'http://google.com', 'http://twitter.com'];
 
 ReactDOM.render(
-    <App/>,
+    <Workspace/>,
     document.getElementById('app')
 );
