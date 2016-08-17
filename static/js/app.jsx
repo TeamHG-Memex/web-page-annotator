@@ -1,13 +1,47 @@
+// FIXME - this is not really used
+var App = React.createClass({
+    getInitialState: function () {
+        var workspaces = [{}];
+        return {
+            workspaces: workspaces,
+            activeWorkspace: workspaces[0]
+        };
+    },
+    render: function () {
+        if (this.state.activeWorkspace) {
+            var ws = this.state.activeWorkspace;
+            return <Workspace
+                id={ ws.id }
+                name={ ws.name }
+                onClose={ this.onCloseWorkspace }
+            />;
+        } else {
+            return <WorkspaceList workspaces={ this.props.workspaces }/>;
+        }
+    },
+    onCloseWorkspace: function () {
+        // TODO - do we need to reflect the changes?
+        this.setState({activeWorkspace: null});
+    }
+});
+
+var WorkspaceList = React.createClass({
+    render: function () {
+        return <div>ws list</div>;
+    }
+});
+
 var Workspace = React.createClass({
     getInitialState: function () {
         return {
-            name: '',
+            id: this.props.id,
+            name: this.props.name || '',
             labels: [],
             urls: [],
+            labeled: {},  // url -> selector -> labelData
             urlIdx: 0,
             editingWorkspace: false,
-            editingLabelAt: null,
-            labeled: {}  // url -> selector -> labelData
+            editingLabelAt: null
         };
     },
     render: function () {
@@ -32,6 +66,7 @@ var Workspace = React.createClass({
         }
         if (this.state.editingWorkspace) {
             workspaceSettings = <WorkspaceSettings
+                id={ this.state.id }
                 name={ this.state.name }
                 urls={ this.state.urls }
                 labels={ this.state.labels }
@@ -55,8 +90,10 @@ var Workspace = React.createClass({
                     <i className="material-icons right">skip_next</i>next
                 </a>{' '}
                 <a className={ btnClasses(true) }
-                    onClick={ this.onWorkspaceStartEdit }>workspace</a>{' '}
-                <a className={ btnClasses(this.exportEnabled()) }>export pages & labels</a>{' '}
+                   onClick={ this.onWorkspaceStartEdit }>workspace</a>{' '}
+                <a className={ btnClasses(this.exportEnabled()) }>export</a>{' '}
+                <a className={ btnClasses(true) }
+                   onClick={ this.onClose }>close</a>{' '}
             </div>
             { iframe }
             { labelDropdown }
@@ -95,6 +132,9 @@ var Workspace = React.createClass({
     },
     onWorkspaceDiscardEdit: function () {
         this.setState({editingWorkspace: false});
+    },
+    onClose: function (event) {
+        this.props.onClose();
     },
     previousEnabled: function () {
         return this.state.urlIdx > 0;
@@ -215,6 +255,7 @@ var Label = React.createClass({
 var WorkspaceSettings = React.createClass({
     getInitialState: function () {
         return {
+            id: this.props.id,
             name: this.props.name,
             urls_text: this.props.urls.join('\n'),
             labels_text: this.props.labels.join('\n')
@@ -242,7 +283,7 @@ var WorkspaceSettings = React.createClass({
                 </div>
                 <div className="modal-footer">
                     <a className="waves-effect waves-light btn-flat"
-                       onClick={ this.onImport }>ok</a>{ ' ' }
+                       onClick={ this.onOk }>ok</a>{ ' ' }
                     <a className="waves-effect waves-light btn-flat"
                        onClick={ this.onCancel }>cancel</a>{ ' ' }
                 </div>
@@ -257,9 +298,11 @@ var WorkspaceSettings = React.createClass({
     updateName: function (event) {
         this.setState({name: event.target.value});
     },
-    onImport: function (event) {
+    onOk: function (event) {
         event.preventDefault();
+        // TODO - save workpsace
         this.props.onWorkspaceFinishEdit({
+            id: this.state.id,
             name: this.state.name,
             urls: this.state.urls_text.split('\n'),
             labels: this.state.labels_text.split('\n')
@@ -274,7 +317,4 @@ var WorkspaceSettings = React.createClass({
 // var labels = ['Title', 'Body', 'Author', 'Date'];
 // var urls = ['http://risk.ru', 'http://google.com', 'http://twitter.com'];
 
-ReactDOM.render(
-    <Workspace/>,
-    document.getElementById('app')
-);
+ReactDOM.render(<App/>, document.getElementById('app'));
