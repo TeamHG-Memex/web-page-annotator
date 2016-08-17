@@ -43,17 +43,13 @@ var App = React.createClass({
     },
     onPrevious: function (event) {
         if (this.previousEnabled()) {
-            var state = Object.assign({}, this.state);
-            state.idx -= 1;
-            this.setState(state);
+            this.setState({idx: this.state.idx - 1});
         }
         event.preventDefault();
     },
     onNext: function (event) {
         if (this.nextEnabled()) {
-            var state = Object.assign({}, this.state);
-            state.idx += 1;
-            this.setState(state);
+            this.setState({idx: this.state.idx + 1});
         }
         event.preventDefault();
     },
@@ -67,9 +63,7 @@ var App = React.createClass({
         return this.state.idx < (this.props.urls.length - 1);
     },
     onLabelElement: function (event) {
-        var data = event.data;
-        console.log('onLabelElement', data);
-        this.setState(Object.assign({}, this.state, {labelAt: data}));
+        this.setState({labelAt: event.data});
     },
     onLabelSelected: function (text) {
         var labelData = {text: text, selector: this.state.labelAt.selector};
@@ -81,7 +75,7 @@ var App = React.createClass({
         this.setState({labeled: labeled, labelAt: null});
     },
     onCloseLabels: function () {
-        this.setState(Object.assign({}, this.state, {labelAt: null}));
+        this.setState({labelAt: null});
     },
     componentDidMount: function () {
         document.body.addEventListener('label-element', this.onLabelElement);
@@ -155,7 +149,7 @@ var Label = React.createClass({
 });
 
 var labels = ['Title', 'Body', 'Author', 'Date'];
-var urls = ['http://risk.ru', 'http://twitter.com', 'http://google.com'];
+var urls = ['http://risk.ru', 'http://google.com', 'http://twitter.com'];
 
 ReactDOM.render(
     <App urls={ urls } labels={ labels }/>,
