@@ -8,15 +8,21 @@ var App = React.createClass({
     },
     render: function () {
         console.log('App.render', this.state);
+        var url = this.currentUrl();
         var labelDropdown;
         if (this.state.labelAt) {
+            var urlLabeled = this.state.labeled[url];
+            var labelValue;
+            if (urlLabeled) {
+                labelValue = urlLabeled[this.state.labelAt.selector];
+            }
             labelDropdown = <LabelDropdown
                 labels={ this.props.labels }
                 position={ this.state.labelAt }
-                onLabelSelected={ this.onLabelSelected }
+                value={ labelValue }
+                onLabelFinishEdit={ this.onLabelFinishEdit }
                 />
         }
-        var url = this.currentUrl();
         var btnClasses = 'waves-effect waves-light btn';
         var labeled = this.state.labeled[url];
         return <div>
@@ -62,11 +68,14 @@ var App = React.createClass({
     nextEnabled: function () {
         return this.state.idx < (this.props.urls.length - 1);
     },
-    onLabelElement: function (event) {
+    onLabelStartEdit: function (event) {
         this.setState({labelAt: event.data});
     },
-    onLabelSelected: function (text) {
-        var labelData = {text: text, selector: this.state.labelAt.selector};
+    onLabelFinishEdit: function (text, wasSelected) {
+        var labelData = {selector: this.state.labelAt.selector};
+        if (!wasSelected) {
+            labelData.text = text;
+        }
         var url = this.currentUrl();
         var labeled = Object.assign({}, this.state.labeled);
         labeled[url] = Object.assign({}, labeled[url] || {});
@@ -77,11 +86,11 @@ var App = React.createClass({
         this.setState({labelAt: null});
     },
     componentDidMount: function () {
-        document.body.addEventListener('label-element', this.onLabelElement);
+        document.body.addEventListener('label-element', this.onLabelStartEdit);
         document.body.addEventListener('close-labels', this.onCloseLabels);
     },
     componentWillUnmount: function () {
-        document.body.removeEventListener('label-element', this.onLabelElement);
+        document.body.removeEventListener('label-element', this.onLabelStartEdit);
         document.body.removeEventListener('close-labels', this.onCloseLabels);
     }
 });
@@ -130,7 +139,10 @@ var IFrame = React.createClass({
 var LabelDropdown = React.createClass({
     render: function () {
         var labels = this.props.labels.map(function (text) {
-            return <Label text={ text } onLabelSelected={ this.props.onLabelSelected }/>;
+            return <Label
+                text={ text }
+                selected={ this.props.value && text === this.props.value.text }
+                onLabelFinishEdit={ this.props.onLabelFinishEdit }/>;
         }.bind(this));
         var position = this.props.position;
         return <div
@@ -147,11 +159,15 @@ var LabelDropdown = React.createClass({
 
 var Label = React.createClass({
     render: function () {
+        var text = this.props.text;
+        if (this.props.selected) {
+            text = <b>{ text }</b>;
+        }
         return <a href="#!" className="collection-item" onClick={ this.onClick }>
-            { this.props.text }</a>;
+            { text }</a>;
     },
     onClick: function (event) {
-        this.props.onLabelSelected(this.props.text);
+        this.props.onLabelFinishEdit(this.props.text, this.props.selected);
         event.preventDefault();
     }
 });

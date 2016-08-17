@@ -23,8 +23,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('label-selected', function (event) {
         var labelData = event.data;
         var el = document.querySelector(labelData.selector);
-        el.classList.add('web-page-annotator-selected');
         // TODO - different colors for different labels, or add text? Or both
+        if (labelData.text) {
+            el.classList.add('web-page-annotator-selected');
+        } else {
+            el.classList.remove('web-page-annotator-selected');
+        }
     });
 
     // TODO - remove highligh when leaving window
