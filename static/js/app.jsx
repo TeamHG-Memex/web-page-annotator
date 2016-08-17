@@ -1,28 +1,28 @@
 var Workspace = React.createClass({
     getInitialState: function () {
         return {
-            name: 'Untitled',
+            name: '',
             labels: [],
             urls: [],
             urlIdx: 0,
-            importingUrls: false,
-            labelAt: null,
+            editingWorkspace: false,
+            editingLabelAt: null,
             labeled: {}  // url -> selector -> labelData
         };
     },
     render: function () {
         var url = this.currentUrl();
-        var labelDropdown, iframe, urlsImport;
+        var labelDropdown, iframe, workspaceSettings;
         if (url) {
-            if (this.state.labelAt) {
+            if (this.state.editingLabelAt) {
                 var urlLabeled = this.state.labeled[url];
                 var labelValue;
                 if (urlLabeled) {
-                    labelValue = urlLabeled[this.state.labelAt.selector];
+                    labelValue = urlLabeled[this.state.editingLabelAt.selector];
                 }
                 labelDropdown = <LabelDropdown
                     labels={ this.state.labels }
-                    position={ this.state.labelAt }
+                    position={ this.state.editingLabelAt }
                     value={ labelValue }
                     onLabelFinishEdit={ this.onLabelFinishEdit }
                 />
@@ -30,13 +30,13 @@ var Workspace = React.createClass({
             var labeled = this.state.labeled[url];
             iframe = <IFrame url={ url } labeled={ labeled }/>
         }
-        if (this.state.importingUrls) {
-            urlsImport = <UrlsImport
+        if (this.state.editingWorkspace) {
+            workspaceSettings = <WorkspaceSettings
                 name={ this.state.name }
                 urls={ this.state.urls }
                 labels={ this.state.labels }
-                cancelImportUrls={ this.cancelImportUrls }
-                doImportUrls={ this.doImportUrls }/>;
+                onWorkspaceDiscardEdit={ this.onWorkspaceDiscardEdit }
+                onWorkspaceFinishEdit={ this.onWorkspaceFinishEdit }/>;
         }
         var btnClasses = function (enabled) {
             return 'waves-effect waves-light btn' + (enabled ? '' : ' disabled');
@@ -55,12 +55,12 @@ var Workspace = React.createClass({
                     <i className="material-icons right">skip_next</i>next
                 </a>{' '}
                 <a className={ btnClasses(true) }
-                    onClick={ this.onImportUrls }>import urls</a>{' '}
+                    onClick={ this.onWorkspaceStartEdit }>workspace</a>{' '}
                 <a className={ btnClasses(this.exportEnabled()) }>export pages & labels</a>{' '}
             </div>
             { iframe }
             { labelDropdown }
-            { urlsImport }
+            { workspaceSettings }
         </div>;
     },
     currentUrl: function () {
@@ -83,17 +83,18 @@ var Workspace = React.createClass({
     onReload: function () {
         window.alert('TODO');
     },
-    onImportUrls: function () {
-        this.setState({importingUrls: true});
+    onWorkspaceStartEdit: function () {
+        this.setState({editingWorkspace: true});
     },
-    doImportUrls: function (updated) {
+    onWorkspaceFinishEdit: function (updated) {
         if (this.state.urlIdx >= updated.urls.length) {
             updated.urlIdx = 0;
         }
+        updated.editingWorkspace = false;
         this.setState(updated);
     },
-    cancelImportUrls: function () {
-        this.setState({importingUrls: false});
+    onWorkspaceDiscardEdit: function () {
+        this.setState({editingWorkspace: false});
     },
     previousEnabled: function () {
         return this.state.urlIdx > 0;
@@ -108,10 +109,10 @@ var Workspace = React.createClass({
         return Boolean(this.currentUrl());
     },
     onLabelStartEdit: function (event) {
-        this.setState({labelAt: event.data});
+        this.setState({editingLabelAt: event.data});
     },
     onLabelFinishEdit: function (text, wasSelected) {
-        var labelData = {selector: this.state.labelAt.selector};
+        var labelData = {selector: this.state.editingLabelAt.selector};
         if (!wasSelected) {
             labelData.text = text;
         }
@@ -119,10 +120,10 @@ var Workspace = React.createClass({
         var labeled = Object.assign({}, this.state.labeled);
         labeled[url] = Object.assign({}, labeled[url] || {});
         labeled[url][labelData.selector] = labelData;
-        this.setState({labeled: labeled, labelAt: null});
+        this.setState({labeled: labeled, editingLabelAt: null});
     },
     onLabelDiscardEdit: function () {
-        this.setState({labelAt: null});
+        this.setState({editingLabelAt: null});
     },
     componentDidMount: function () {
         document.body.addEventListener('labelStartEdit', this.onLabelStartEdit);
@@ -211,7 +212,7 @@ var Label = React.createClass({
     }
 });
 
-var UrlsImport = React.createClass({
+var WorkspaceSettings = React.createClass({
     getInitialState: function () {
         return {
             name: this.props.name,
@@ -220,23 +221,32 @@ var UrlsImport = React.createClass({
         };
     },
     render: function () {
-        // TODO - this should be a dialog
-        return <div>
-            <label>Workspace name</label>
-            <input type="text"
-                   onChange={ this.updateName }
-                   value={ this.state.name }/>
-            <label>Lables (one on a line)</label>
-            <textarea name="labels" onChange={ this.updateLabels }>
-                { this.state.labels_text }</textarea>
-            <label>Urls (one on a line)</label>
-            <textarea name="urls" onChange={ this.updateUrls }>
-                { this.state.urls_text }</textarea>
-            <a className="waves-effect waves-light btn"
-                onClick={ this.onCancel }>cancel</a>{ ' ' }
-            <a className="waves-effect waves-light btn"
-                onClick={ this.onImport }>import urls</a>
-        </div>;
+        return <div id="workspace-settings" className="modal modal-fixed-footer">
+                <div className="modal-content">
+                    <h4>Workspace setup</h4>
+                    <input
+                        type="text"
+                        placeholder="Workspace name"
+                        onChange={ this.updateName }
+                        value={ this.state.name }/>
+                    <textarea
+                        className="materialize-textarea"
+                        onChange={ this.updateLabels }>
+                        { this.state.labels_text }</textarea>
+                    <label>Labeles (one on a line)</label>
+                    <textarea
+                        className="materialize-textarea"
+                        onChange={ this.updateUrls }>
+                        { this.state.urls_text }</textarea>
+                    <label>Urls (one on a line)</label>
+                </div>
+                <div className="modal-footer">
+                    <a className="waves-effect waves-light btn-flat"
+                       onClick={ this.onImport }>ok</a>{ ' ' }
+                    <a className="waves-effect waves-light btn-flat"
+                       onClick={ this.onCancel }>cancel</a>{ ' ' }
+                </div>
+            </div>;
     },
     updateUrls: function (event) {
         this.setState({urls_text: event.target.value});
@@ -249,7 +259,7 @@ var UrlsImport = React.createClass({
     },
     onImport: function (event) {
         event.preventDefault();
-        this.props.doImportUrls({
+        this.props.onWorkspaceFinishEdit({
             name: this.state.name,
             urls: this.state.urls_text.split('\n'),
             labels: this.state.labels_text.split('\n')
@@ -257,7 +267,7 @@ var UrlsImport = React.createClass({
     },
     onCancel: function (event) {
         event.preventDefault();
-        this.props.cancelImportUrls();
+        this.props.onWorkspaceDiscardEdit();
     }
 });
 

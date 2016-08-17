@@ -14,5 +14,11 @@
 
 .selected-label {
     font-weight: bolder;
-    text-decoration: underline; /* TODO - dotted */
+    border-bottom: 1px dotted;
+}
+
+#workspace-settings {
+    display: block;
+    position: absolute;
+    top: 100px;
 }
