@@ -10,6 +10,44 @@ from tornado.httputil import HTTPHeaders
 Base = declarative_base()
 
 
+class Workspace(Base):
+    __tablename__ = 'workspaces'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(Text)
+
+
+class Page(Base):
+    __tablename__ = 'pages'
+
+    id = Column(Integer, primary_key=True)
+    workspace = Column(ForeignKey(Workspace.id))
+    urls = Column(Text)
+
+    # TODO - workspace and url are unique together
+
+
+class Label(Base):
+    __tablename__ = 'labels'
+
+    id = Column(Integer, primary_key=True)
+    workspace = Column(ForeignKey(Workspace.id))
+    text = Column(Text)
+
+    # TODO - workspace and text are unique together
+
+
+class ElementLabel(Base):
+    __tablename__ = 'element_labels'
+
+    id = Column(Integer, primary_key=True)
+    page = Column(ForeignKey(Page.id))
+    selector = Column(Text)
+    label = Column(ForeignKey(Label.id))
+
+    # TODO - page and selector are unique together
+
+
 class Response(Base):
     __tablename__ = 'responses'
 
@@ -17,7 +55,7 @@ class Response(Base):
     url = Column(Text, unique=True)
     _headers = Column(Text)
     body = Column(LargeBinary)
-    # TODO - we will need at least some "page set" field
+    # TODO - link to page? Or this will change anyway
 
     def __init__(self, *, url: str, headers: HTTPHeaders, body: bytes):
         self.url = url
@@ -30,15 +68,6 @@ class Response(Base):
 
     def __repr__(self):
         return '<Response "{}">'.format(self.url)
-
-
-class ElementLabel(Base):
-    __tablename__ = 'element_labels'
-
-    id = Column(Integer, primary_key=True)
-    response = Column(ForeignKey(Response.id))
-    selector = Column(Text)
-    label = Column(Text)  # TODO - fk to Label
 
 
 def dump_headers(headers: HTTPHeaders) -> str:
