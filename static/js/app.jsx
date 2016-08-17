@@ -161,7 +161,7 @@ var Label = React.createClass({
     render: function () {
         var text = this.props.text;
         if (this.props.selected) {
-            text = <b>{ text }</b>;
+            text = <span className="selected-label">{ text }</span>;
         }
         return <a href="#!" className="collection-item" onClick={ this.onClick }>
             { text }</a>;

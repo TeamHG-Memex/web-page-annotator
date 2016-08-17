@@ -11,3 +11,8 @@
 .label-dropdown {
     position: absolute;
 }
+
+.selected-label {
+    font-weight: bolder;
+    text-decoration: underline; /* TODO - dotted */
+}
