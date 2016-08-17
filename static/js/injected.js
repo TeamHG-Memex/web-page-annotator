@@ -4,8 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var eventToParent = document.createEvent('Event');
         eventToParent.initEvent('label-element', true, true);
         eventToParent.data = {
-            x: event.pageX,
-            y: event.pageY,
+            x: event.clientX,
+            y: event.clientY,
             selector: elementSelector(eventTarget(event))
         };
         window.parent.document.body.dispatchEvent(eventToParent);
