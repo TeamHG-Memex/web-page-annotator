@@ -71,7 +71,8 @@ var Workspace = React.createClass({
                 urls={ this.state.urls }
                 labels={ this.state.labels }
                 onWorkspaceDiscardEdit={ this.onWorkspaceDiscardEdit }
-                onWorkspaceFinishEdit={ this.onWorkspaceFinishEdit }/>;
+                onWorkspaceFinishEdit={ this.onWorkspaceFinishEdit }
+                onWorkspaceSaved={ this.onWorkspaceSaved }/>;
         }
         var btnClasses = function (enabled) {
             return 'waves-effect waves-light btn' + (enabled ? '' : ' disabled');
@@ -128,6 +129,10 @@ var Workspace = React.createClass({
             updated.urlIdx = 0;
         }
         updated.editingWorkspace = false;
+        this.setState(updated);
+    },
+    onWorkspaceSaved: function (updated) {
+        console.log('onWorkspaceSaved', updated);
         this.setState(updated);
     },
     onWorkspaceDiscardEdit: function () {
@@ -300,12 +305,26 @@ var WorkspaceSettings = React.createClass({
     },
     onOk: function (event) {
         event.preventDefault();
-        // TODO - save workpsace
-        this.props.onWorkspaceFinishEdit({
+        var ws = {
             id: this.state.id,
             name: this.state.name,
             urls: this.state.urls_text.split('\n'),
             labels: this.state.labels_text.split('\n')
+        };
+        this.props.onWorkspaceFinishEdit(ws);
+        var data = Object.assign({}, ws, {'model': 'workspace'});
+        $.ajax({
+            url: '/',
+            dataType: 'json',
+            type: 'POST',
+            data: JSON.stringify(data),
+            success: function (data) {
+                this.props.onWorkspaceSaved(data);
+            }.bind(this),
+            error: function(xhr, status, err) {
+                // TODO
+                console.error(this.props.url, status, err.toString());
+            }.bind(this)
         });
     },
     onCancel: function (event) {

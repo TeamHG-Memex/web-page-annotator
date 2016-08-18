@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import json
 from pathlib import Path
 from urllib.parse import urlsplit, urljoin, unquote, urlencode
 
@@ -11,7 +12,7 @@ from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
 
-from models import Base, get_response, save_response
+from models import Base, get_response, save_response, Workspace
 
 
 ROOT = Path(__file__).parent
@@ -23,6 +24,24 @@ Session = sessionmaker()
 class MainHandler(web.RequestHandler):
     def get(self):
         self.render('templates/main.html')
+
+    def post(self):
+        session = Session()
+        data = json.loads(self.request.body.decode('utf8'))
+        getattr(self, 'post_' + data.pop('model'))(session, data)
+
+    def post_workspace(self, session, data):
+        if data.get('id'):
+            workspace = session.query(Workspace).get(data['id'])
+        else:
+            workspace = Workspace()
+        workspace.name = data['name']
+        session.add(workspace)
+        session.commit()
+        workspace.update_labels(session, data['labels'])
+        workspace.update_urls(session, data['urls'])
+        session.commit()
+        self.write({'id': workspace.id})
 
 
 class ProxyHandler(web.RequestHandler):

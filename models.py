@@ -1,4 +1,5 @@
 import json
+from typing import List
 
 from sqlalchemy import Column, Integer, Text, LargeBinary, ForeignKey
 from sqlalchemy.exc import IntegrityError
@@ -16,13 +17,29 @@ class Workspace(Base):
     id = Column(Integer, primary_key=True)
     name = Column(Text)
 
+    def update_labels(self, session, labels: List[str]):
+        self.update_model_by_field(session, Label, 'text', labels)
+
+    def update_urls(self, session, urls: List[str]):
+        self.update_model_by_field(session, Page, 'url', urls)
+
+    def update_model_by_field(
+            self, session, model: Base, field: str, values: List[str]):
+        values = set(values)
+        obj_by_value = {getattr(obj, field): obj for obj in
+                        session.query(model).filter(model.workspace == self.id)}
+        for value in set(obj_by_value) - values:
+            session.delete(obj_by_value[value])
+        for value in values - set(obj_by_value):
+            session.add(model(workspace=self.id, **{field: value}))
+
 
 class Page(Base):
     __tablename__ = 'pages'
 
     id = Column(Integer, primary_key=True)
     workspace = Column(ForeignKey(Workspace.id))
-    urls = Column(Text)
+    url = Column(Text)
 
     # TODO - workspace and url are unique together
 
