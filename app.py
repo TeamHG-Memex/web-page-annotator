@@ -7,13 +7,14 @@ from urllib.parse import urlsplit, urljoin, unquote, urlencode
 
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, contains_eager
 import tornado.ioloop
 from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
 
-from models import Base, get_response, save_response, Workspace, Label, Page
+from models import Base, get_response, save_response, Workspace, Label, Page, \
+    ElementLabel
 
 
 logging.basicConfig(format='[%(levelname)s] %(asctime)s %(message)s')
@@ -56,15 +57,50 @@ class WorkspaceHandler(web.RequestHandler):
     def get(self, ws_id):
         session = Session()
         ws = session.query(Workspace).get(int(ws_id))
-        # TODO - get "labeled"
+        labeled = {}
+        for element_label, page_url, label_text in (
+                session.query(ElementLabel, Page.url, Label.text).join(Page)
+                .filter(Page.workspace == ws.id)
+                .all()):
+            labeled.setdefault(page_url, {})[element_label.selector] = {
+                'selector': element_label.selector,
+                'text': label_text,
+            }
         self.write({
             'id': ws.id,
             'name': ws.name,
             'labels': [label.text for label in
-                       session.query(Label).filter(Label.workspace == ws.id)],
+                       session.query(Label).filter_by(workspace=ws.id)],
             'urls': [page.url for page in
-                     session.query(Page).filter(Page.workspace == ws.id)],
+                     session.query(Page).filter_by(workspace=ws.id)],
+            'labeled': labeled,
         })
+
+
+class LabelHandler(web.RequestHandler):
+    def post(self):
+        session = Session()
+        data = json.loads(self.request.body.decode('utf8'))
+        ws = session.query(Workspace).get(data['wsId'])
+        page = session.query(Page).filter_by(
+            workspace=ws.id, url=data['url']).one()
+        element_label = session.query(ElementLabel).filter_by(
+            page=page.id, selector=data['selector']).one_or_none()
+        if data.get('label') is not None:
+            label = session.query(Label).filter_by(
+                workspace=ws.id, text=data['label']).one()
+            if element_label is None:
+                element_label = ElementLabel(
+                    page=page.id,
+                    selector=data['selector'],
+                    label=label.id)
+            else:
+                element_label.label = label.id
+            session.add(element_label)
+        elif element_label is not None:
+            session.delete(element_label)
+        session.commit()
+        self.write({'ok': True})
 
 
 class ProxyHandler(web.RequestHandler):
@@ -153,6 +189,7 @@ def fixed_full_url(url: str) -> str:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--echo', action='store_true')
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
     app = tornado.web.Application(
@@ -160,13 +197,15 @@ def main():
             web.URLSpec(r'/', MainHandler, name='main'),
             web.URLSpec(r'/~wpa/workspace/', WorkspaceListHandler, name='ws_list'),
             web.URLSpec(r'/~wpa/workspace/(\d+)/', WorkspaceHandler),
+            web.URLSpec(r'/~wpa/label/', LabelHandler, name='label'),
             web.URLSpec(r'/(.*)', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,
         static_prefix='/static/',
         static_path=str(STATIC_ROOT),
     )
-    engine = create_engine('sqlite:///{}'.format(ROOT / 'db.sqlite'))
+    engine = create_engine(
+        'sqlite:///{}'.format(ROOT / 'db.sqlite'), echo=args.echo)
     Session.configure(bind=engine)
     Base.metadata.create_all(engine)
     app.listen(args.port)

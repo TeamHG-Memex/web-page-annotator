@@ -240,6 +240,17 @@ var Workspace = React.createClass({
         labeled[url] = Object.assign({}, labeled[url] || {});
         labeled[url][labelData.selector] = labelData;
         this.setState({labeled: labeled, editingLabelAt: null});
+        $.ajax({
+            url: URLS.label,
+            method: 'POST',
+            dataType: 'json',
+            data: JSON.stringify({
+                wsId: this.props.id,
+                url: url,
+                selector: labelData.selector,
+                label: labelData.text
+            })
+        });
     },
     onLabelDiscardEdit: function () {
         this.setState({editingLabelAt: null});
