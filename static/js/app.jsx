@@ -167,7 +167,8 @@ var Workspace = React.createClass({
                 </a>{' '}
                 <a className={ btnClasses(true) }
                    onClick={ this.onWorkspaceStartEdit }>workspace</a>{' '}
-                <a className={ btnClasses(this.exportEnabled()) }>export</a>{' '}
+                <a className={ btnClasses(this.exportEnabled()) }
+                   href={ this.exportURL() }>export</a>{' '}
                 <a className={ btnClasses(true) }
                    onClick={ this.onClose }>close</a>{' '}
             </div>
@@ -225,7 +226,14 @@ var Workspace = React.createClass({
         return Boolean(this.currentUrl());
     },
     exportEnabled: function () {
-        return Boolean(this.currentUrl());
+        return Boolean(this.state.id && this.currentUrl());
+    },
+    exportURL: function () {
+        if (this.state.id) {
+            return URLS.ws_export + this.state.id + '/';
+        } else {
+            return '#!';
+        }
     },
     onLabelStartEdit: function (event) {
         this.setState({editingLabelAt: event.data});

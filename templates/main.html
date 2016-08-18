@@ -19,7 +19,8 @@
 <script type="text/javascript">
     var URLS = {
         ws_list: "{{ reverse_url('ws_list') }}",
-        label: "{{ reverse_url('label') }}"
+        label: "{{ reverse_url('label') }}",
+        ws_export: "{{ reverse_url('ws_export', '0').split('0')[0] }}"
     };
 </script>
 <script type="text/babel" src="{{ static_url('js/app.jsx') }}"></script>

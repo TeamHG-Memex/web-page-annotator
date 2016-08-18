@@ -3,13 +3,15 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from typing import Dict
 from urllib.parse import urlsplit, urljoin, unquote, urlencode
 
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, contains_eager
 import tornado.ioloop
-from tornado import web, gen
+from tornado.gen import coroutine
+from tornado.web import Application, RequestHandler, URLSpec
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
 
@@ -24,12 +26,12 @@ STATIC_ROOT = ROOT / 'static'
 Session = sessionmaker()
 
 
-class MainHandler(web.RequestHandler):
+class MainHandler(RequestHandler):
     def get(self):
         self.render('templates/main.html')
 
 
-class WorkspaceListHandler(web.RequestHandler):
+class WorkspaceListHandler(RequestHandler):
     def get(self):
         session = Session()
         self.write({
@@ -53,31 +55,35 @@ class WorkspaceListHandler(web.RequestHandler):
         self.write({'id': workspace.id})
 
 
-class WorkspaceHandler(web.RequestHandler):
+class WorkspaceHandler(RequestHandler):
     def get(self, ws_id):
         session = Session()
         ws = session.query(Workspace).get(int(ws_id))
-        labeled = {}
-        for element_label, page_url, label_text in (
-                session.query(ElementLabel, Page.url, Label.text).join(Page)
-                .filter(Page.workspace == ws.id)
-                .all()):
-            labeled.setdefault(page_url, {})[element_label.selector] = {
-                'selector': element_label.selector,
-                'text': label_text,
-            }
-        self.write({
-            'id': ws.id,
-            'name': ws.name,
-            'labels': [label.text for label in
-                       session.query(Label).filter_by(workspace=ws.id)],
-            'urls': [page.url for page in
-                     session.query(Page).filter_by(workspace=ws.id)],
-            'labeled': labeled,
-        })
+        self.write(workspace_to_json(session, ws))
 
 
-class LabelHandler(web.RequestHandler):
+def workspace_to_json(session: Session, ws: Workspace) -> Dict:
+    labeled = {}
+    for element_label, page_url, label_text in (
+            session.query(ElementLabel, Page.url, Label.text).join(Page)
+            .filter(Page.workspace == ws.id)
+            .all()):
+        labeled.setdefault(page_url, {})[element_label.selector] = {
+            'selector': element_label.selector,
+            'text': label_text,
+        }
+    return {
+        'id': ws.id,
+        'name': ws.name,
+        'labels': [label.text for label in
+                   session.query(Label).filter_by(workspace=ws.id)],
+        'urls': [page.url for page in
+                 session.query(Page).filter_by(workspace=ws.id)],
+        'labeled': labeled,
+    }
+
+
+class LabelHandler(RequestHandler):
     def post(self):
         session = Session()
         data = json.loads(self.request.body.decode('utf8'))
@@ -103,8 +109,17 @@ class LabelHandler(web.RequestHandler):
         self.write({'ok': True})
 
 
-class ProxyHandler(web.RequestHandler):
-    @gen.coroutine
+class ExportHandler(RequestHandler):
+    def get(self, ws_id):
+        session = Session()
+        ws = session.query(Workspace).get(int(ws_id))
+        self.set_header('Content-Disposition',
+                        'attachment; filename="{}.json"'.format(ws.name))
+        self.write(json.dumps(workspace_to_json(session, ws), indent=True))
+
+
+class ProxyHandler(RequestHandler):
+    @coroutine
     def get(self, path):
         referrer = self.request.headers.get('Referer')
         if self.request.arguments:
@@ -192,13 +207,13 @@ def main():
     parser.add_argument('--echo', action='store_true')
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
-    app = tornado.web.Application(
-        [
-            web.URLSpec(r'/', MainHandler, name='main'),
-            web.URLSpec(r'/~wpa/workspace/', WorkspaceListHandler, name='ws_list'),
-            web.URLSpec(r'/~wpa/workspace/(\d+)/', WorkspaceHandler),
-            web.URLSpec(r'/~wpa/label/', LabelHandler, name='label'),
-            web.URLSpec(r'/(.*)', ProxyHandler, name='proxy'),
+    app = Application(
+        [URLSpec(r'/', MainHandler, name='main'),
+         URLSpec(r'/~wpa/workspace/', WorkspaceListHandler, name='ws_list'),
+         URLSpec(r'/~wpa/workspace/(\d+)/', WorkspaceHandler),
+         URLSpec(r'/~wpa/label/', LabelHandler, name='label'),
+         URLSpec(r'/~wpa/export/(\d+)/', ExportHandler, name='ws_export'),
+         URLSpec(r'/(.*)', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,
         static_prefix='/static/',
