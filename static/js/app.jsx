@@ -245,7 +245,7 @@ var Workspace = React.createClass({
             method: 'POST',
             dataType: 'json',
             data: JSON.stringify({
-                wsId: this.props.id,
+                wsId: this.state.id,
                 url: url,
                 selector: labelData.selector,
                 label: labelData.text
@@ -282,17 +282,18 @@ var IFrame = React.createClass({
             var labeled = this.props.labeled;
             if (labeled) {
                 var notifyChild = function () {
-                    Object.keys(labeled).forEach(function (selector) {
-                        notifyChildOfLabel(labeled[selector], iframe);
-                    });
-                };
-                if (iframe.contentWindow.location.pathname != '/' + this.props.url) {
-                    // FIXME - this is a gross hack. At least, we should determine
-                    // when the child iframe has switched location and loaded DOM
-                    window.setTimeout(notifyChild, 1000);
-                } else {
-                    notifyChild();
-                }
+                    if (iframe.contentWindow.location.pathname === '/' + this.props.url &&
+                            iframe.contentDocument.readyState === 'complete') {
+                        Object.keys(labeled).forEach(function (selector) {
+                            notifyChildOfLabel(labeled[selector], iframe);
+                        });
+                    } else {
+                        // We could do the readyState check with an event instead of
+                        // a busy wait, but I don't know how to do it with location check.
+                        window.setTimeout(notifyChild, 50);
+                    }
+                }.bind(this);
+                notifyChild();
             }
         }
     }
@@ -385,8 +386,8 @@ var WorkspaceSettings = React.createClass({
         var ws = {
             id: this.state.id,
             name: this.state.name,
-            urls: this.state.urls_text.split('\n'),
-            labels: this.state.labels_text.split('\n')
+            urls: this.state.urls_text.trim().split('\n'),
+            labels: this.state.labels_text.trim().split('\n')
         };
         this.props.onWorkspaceFinishEdit(ws);
         $.ajax({
