@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import json
+import logging
 from pathlib import Path
 from urllib.parse import urlsplit, urljoin, unquote, urlencode
 
@@ -12,9 +13,10 @@ from tornado import web, gen
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
 
-from models import Base, get_response, save_response, Workspace
+from models import Base, get_response, save_response, Workspace, Label, Page
 
 
+logging.basicConfig(format='[%(levelname)s] %(asctime)s %(message)s')
 ROOT = Path(__file__).parent
 STATIC_ROOT = ROOT / 'static'
 
@@ -25,12 +27,18 @@ class MainHandler(web.RequestHandler):
     def get(self):
         self.render('templates/main.html')
 
+
+class WorkspaceListHandler(web.RequestHandler):
+    def get(self):
+        session = Session()
+        self.write({
+            'workspaces': [{'id': ws.id, 'name': ws.name}
+                           for ws in session.query(Workspace)],
+        })
+
     def post(self):
         session = Session()
         data = json.loads(self.request.body.decode('utf8'))
-        getattr(self, 'post_' + data.pop('model'))(session, data)
-
-    def post_workspace(self, session, data):
         if data.get('id'):
             workspace = session.query(Workspace).get(data['id'])
         else:
@@ -42,6 +50,21 @@ class MainHandler(web.RequestHandler):
         workspace.update_urls(session, data['urls'])
         session.commit()
         self.write({'id': workspace.id})
+
+
+class WorkspaceHandler(web.RequestHandler):
+    def get(self, ws_id):
+        session = Session()
+        ws = session.query(Workspace).get(int(ws_id))
+        # TODO - get "labeled"
+        self.write({
+            'id': ws.id,
+            'name': ws.name,
+            'labels': [label.text for label in
+                       session.query(Label).filter(Label.workspace == ws.id)],
+            'urls': [page.url for page in
+                     session.query(Page).filter(Page.workspace == ws.id)],
+        })
 
 
 class ProxyHandler(web.RequestHandler):
@@ -135,6 +158,8 @@ def main():
     app = tornado.web.Application(
         [
             web.URLSpec(r'/', MainHandler, name='main'),
+            web.URLSpec(r'/~wpa/workspace/', WorkspaceListHandler, name='ws_list'),
+            web.URLSpec(r'/~wpa/workspace/(\d+)/', WorkspaceHandler),
             web.URLSpec(r'/(.*)', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,

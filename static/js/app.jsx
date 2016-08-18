@@ -1,11 +1,18 @@
-// FIXME - this is not really used
 var App = React.createClass({
     getInitialState: function () {
-        var workspaces = [{}];
         return {
-            workspaces: workspaces,
-            activeWorkspace: workspaces[0]
+            workspaces: [],
+            activeWorkspace: null,
         };
+    },
+    componentDidMount: function () {
+        $.ajax({
+            url: URLS.ws_list,
+            dataType: 'json',
+            success: function (data) {
+                this.setState(data);
+            }.bind(this)
+        });
     },
     render: function () {
         if (this.state.activeWorkspace) {
@@ -16,18 +23,69 @@ var App = React.createClass({
                 onClose={ this.onCloseWorkspace }
             />;
         } else {
-            return <WorkspaceList workspaces={ this.props.workspaces }/>;
+            return <WorkspaceList
+                workspaces={ this.state.workspaces }
+                onWorkspaceSelected={ this.onWorkspaceSelected }
+                onAddWorkspace={ this.onAddWorkspace }
+            />;
         }
     },
-    onCloseWorkspace: function () {
-        // TODO - do we need to reflect the changes?
-        this.setState({activeWorkspace: null});
+    onAddWorkspace: function () {
+        this.setState({activeWorkspace: {}});
+    },
+    onWorkspaceSelected: function (ws) {
+        this.setState({activeWorkspace: ws});
+    },
+    onCloseWorkspace: function (ws) {
+        var found = false;
+        var workspaces = this.state.workspaces.map(function (_ws) {
+            if (_ws.id === ws.id) {
+                found = true;
+                return ws;
+            } else {
+                return _ws;
+            }
+        });
+        if (!found) {
+            workspaces.push(ws);
+        }
+        this.setState({activeWorkspace: null, workspaces: workspaces});
     }
 });
 
 var WorkspaceList = React.createClass({
     render: function () {
-        return <div>ws list</div>;
+        var workspaces = this.props.workspaces.map(function (ws) {
+            return <WorkspaceInline
+                ws={ ws }
+                onWorkspaceSelected={ this.props.onWorkspaceSelected }
+            />;
+        }.bind(this));
+        return <div className="container">
+            <h2>Web Page Annotator</h2>
+            <h4>Workspaces</h4>
+            <div className="collection">{ workspaces }</div>
+            <a className="waves-effect waves-light btn"
+               onClick={ this.onAddWorkspace }>add workspace</a>
+            </div>;
+    },
+    onAddWorkspace: function (event) {
+        event.preventDefault();
+        this.props.onAddWorkspace();
+    }
+});
+
+
+var WorkspaceInline = React.createClass({
+    render: function () {
+        return <a
+            href="#!"
+            onClick={ this.onClick }
+            className="collection-item">{ this.props.ws.name || 'Untitled' }</a>;
+    },
+    onClick: function (event) {
+        event.preventDefault();
+        this.props.onWorkspaceSelected(this.props.ws);
     }
 });
 
@@ -35,14 +93,31 @@ var Workspace = React.createClass({
     getInitialState: function () {
         return {
             id: this.props.id,
-            name: this.props.name || '',
+            name: this.props.name,
             labels: [],
             urls: [],
             labeled: {},  // url -> selector -> labelData
             urlIdx: 0,
-            editingWorkspace: false,
+            editingWorkspace: !this.props.id,
             editingLabelAt: null
         };
+    },
+    componentDidMount: function () {
+        document.body.addEventListener('labelStartEdit', this.onLabelStartEdit);
+        document.body.addEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
+        if (this.state.id) {
+            $.ajax({
+                url: URLS.ws_list + this.state.id + '/',
+                dataType: 'json',
+                success: function (data) {
+                    this.setState(data);
+                }.bind(this)
+            });
+        }
+    },
+    componentWillUnmount: function () {
+        document.body.removeEventListener('labelStartEdit', this.onLabelStartEdit);
+        document.body.removeEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
     },
     render: function () {
         var url = this.currentUrl();
@@ -132,14 +207,13 @@ var Workspace = React.createClass({
         this.setState(updated);
     },
     onWorkspaceSaved: function (updated) {
-        console.log('onWorkspaceSaved', updated);
         this.setState(updated);
     },
     onWorkspaceDiscardEdit: function () {
         this.setState({editingWorkspace: false});
     },
     onClose: function (event) {
-        this.props.onClose();
+        this.props.onClose({id: this.state.id, name: this.state.name});
     },
     previousEnabled: function () {
         return this.state.urlIdx > 0;
@@ -169,14 +243,6 @@ var Workspace = React.createClass({
     },
     onLabelDiscardEdit: function () {
         this.setState({editingLabelAt: null});
-    },
-    componentDidMount: function () {
-        document.body.addEventListener('labelStartEdit', this.onLabelStartEdit);
-        document.body.addEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
-    },
-    componentWillUnmount: function () {
-        document.body.removeEventListener('labelStartEdit', this.onLabelStartEdit);
-        document.body.removeEventListener('labelDiscardEdit', this.onLabelDiscardEdit);
     }
 });
 
@@ -274,7 +340,7 @@ var WorkspaceSettings = React.createClass({
                         type="text"
                         placeholder="Workspace name"
                         onChange={ this.updateName }
-                        value={ this.state.name }/>
+                        value={ this.state.name || '' }/>
                     <textarea
                         className="materialize-textarea"
                         onChange={ this.updateLabels }>
@@ -312,12 +378,11 @@ var WorkspaceSettings = React.createClass({
             labels: this.state.labels_text.split('\n')
         };
         this.props.onWorkspaceFinishEdit(ws);
-        var data = Object.assign({}, ws, {'model': 'workspace'});
         $.ajax({
-            url: '/',
+            url: URLS.ws_list,
             dataType: 'json',
             type: 'POST',
-            data: JSON.stringify(data),
+            data: JSON.stringify(ws),
             success: function (data) {
                 this.props.onWorkspaceSaved(data);
             }.bind(this),
