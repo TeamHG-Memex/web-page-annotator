@@ -115,6 +115,7 @@ class ExportHandler(RequestHandler):
         ws = session.query(Workspace).get(int(ws_id))
         self.set_header('Content-Disposition',
                         'attachment; filename="{}.json"'.format(ws.name))
+        self.set_header('Content-Type', 'text/json')
         self.write(json.dumps(workspace_to_json(session, ws), indent=True))
 
 
