@@ -418,7 +418,4 @@ var WorkspaceSettings = React.createClass({
     }
 });
 
-// var labels = ['Title', 'Body', 'Author', 'Date'];
-// var urls = ['http://risk.ru', 'http://google.com', 'http://twitter.com'];
-
 ReactDOM.render(<App/>, document.getElementById('app'));
