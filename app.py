@@ -130,7 +130,16 @@ class ExportHandler(RequestHandler):
         self.set_header('Content-Disposition',
                         'attachment; filename="{}.json"'.format(ws.name))
         self.set_header('Content-Type', 'text/json')
-        self.write(json.dumps(workspace_to_json(session, ws), indent=True))
+        ws_data = workspace_to_json(session, ws)
+        labeled = {url: {
+            selector: label['text'] for selector, label in url_labeled.items()}
+                   for url, url_labeled in ws_data.pop('labeled').items()}
+        ws_data['pages'] = {
+            url: {
+                'url': url,
+                'labeled': labeled.get(url, {}),
+            } for url in ws_data.pop('urls', [])}
+        self.write(json.dumps(ws_data, indent=True))
 
 
 class ProxyHandler(RequestHandler):
