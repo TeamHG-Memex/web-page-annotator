@@ -1,9 +1,13 @@
 import re
 import html.entities
-from typing import Callable
+from typing import Callable, Tuple
 from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup, Tag
+from w3lib.html import get_base_url
+from w3lib.encoding import http_content_type_encoding
+
+from models import Response
 
 
 # Logic is based on slyd.html from portia, but using BeautifulSoup
@@ -17,8 +21,28 @@ _ALLOWED_CHARS_RE = re.compile('[^!-~]') # [!-~] = ascii printable characters
 ProxyUrl = Callable[[str], str]
 
 
+def transformed_response_body(
+        response: Response,
+        html_transform: Callable[[BeautifulSoup, str, ProxyUrl], None],
+        proxy_url: ProxyUrl) -> Tuple[bool, bytes]:
+
+    body = response.body or b''
+    content_type = response.headers.get('content-type', '')
+    if content_type.startswith('text/html'):
+        encoding = http_content_type_encoding(content_type)
+        base_url = get_base_url(body, response.url, encoding)
+        soup = BeautifulSoup(body, 'lxml', from_encoding=encoding)
+        html_transform(
+            soup, base_url=base_url, proxy_url=proxy_url)
+        return True, soup.encode()
+    elif content_type.startswith('text/css'):
+        css_source = body.decode('utf8', 'ignore')
+        return False, process_css(
+            css_source, base_uri=response.url, proxy_url=proxy_url).encode('utf8')
+
+
 def remove_scripts_and_proxy(
-        soup: BeautifulSoup, base_url: str, proxy_url: ProxyUrl):
+        soup: BeautifulSoup, base_url: str, proxy_url: ProxyUrl) -> None:
     """ Clean JavaScript in a html source string
     and change urls to make them go via the proxy.
     """

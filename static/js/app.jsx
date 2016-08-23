@@ -137,7 +137,7 @@ var Workspace = React.createClass({
                 />
             }
             var labeled = this.state.labeled[url];
-            iframe = <IFrame url={ url } labeled={ labeled }/>
+            iframe = <IFrame wsId={ this.state.id } url={ url } labeled={ labeled }/>
         }
         if (this.state.editingWorkspace) {
             workspaceSettings = <WorkspaceSettings
@@ -280,7 +280,8 @@ var IFrame = React.createClass({
         </iframe>;
     },
     proxyUrl: function () {
-        return URLS.proxy + '?url=' + window.encodeURIComponent(this.props.url);
+        return URLS.proxy + this.props.wsId +
+            '/?url=' + window.encodeURIComponent(this.props.url);
     },
     ref: function (iframe) {
         if (iframe) {
@@ -410,6 +411,7 @@ var WorkspaceSettings = React.createClass({
             type: 'POST',
             data: JSON.stringify(ws),
             success: function (data) {
+                ws.id = data.id;
                 this.setState({saving: false});
                 this.props.onWorkspaceFinishEdit(ws);
             }.bind(this),

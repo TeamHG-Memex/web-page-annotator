@@ -2,7 +2,7 @@ import json
 from typing import List
 
 from sqlalchemy import Column, Integer, Text, LargeBinary, ForeignKey, \
-    UniqueConstraint
+    Boolean, UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from tornado.httpclient import HTTPResponse
@@ -80,17 +80,19 @@ class Response(Base):
     _headers = Column(Text)
     body = Column(LargeBinary)
     page = Column(ForeignKey(Page.id))
+    is_main = Column(Boolean)
 
     __table_args__ = (
         UniqueConstraint('page', 'url', name='_page_url'),
     )
 
-    def __init__(self, *,
-                 url: str, page: Page, headers: HTTPHeaders, body: bytes):
+    def __init__(self, *, url: str, page: Page, headers: HTTPHeaders,
+                 body: bytes, is_main: bool):
         self.url = url
         self.page = page.id
         self._headers = dump_headers(headers)
         self.body = body
+        self.is_main = is_main
 
     @property
     def headers(self):
@@ -116,12 +118,15 @@ def get_response(session, page: Page, url: str) -> Response:
         .one_or_none()
 
 
-def save_response(session, page: Page, url: str, response: HTTPResponse):
+def save_response(session, page: Page, url: str, response: HTTPResponse,
+                  is_main: bool):
     session.add(Response(
         url=url,
         page=page,
         headers=response.headers,
-        body=response.body))
+        body=response.body,
+        is_main=is_main,
+    ))
     try:
         session.commit()
     except IntegrityError:

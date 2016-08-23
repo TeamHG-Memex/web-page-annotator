@@ -2,23 +2,25 @@
 import argparse
 import json
 import logging
+import os
 from pathlib import Path
 from urllib.parse import urlencode
+import tempfile
 from typing import Dict
+import zipfile
 
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, contains_eager
+from sqlalchemy.orm import sessionmaker
 import tornado.ioloop
 from tornado.gen import coroutine
 from tornado.web import Application, RequestHandler, URLSpec
 from tornado.httpclient import AsyncHTTPClient
-from w3lib.encoding import http_content_type_encoding
-from w3lib.html import get_base_url
 
 from models import Base, get_response, save_response, Workspace, Label, Page, \
     ElementLabel
-from transform_html import remove_scripts_and_proxy, process_css
+from transform_html import transformed_response_body, remove_scripts_and_proxy
+from offline import save_page_for_offline
 
 
 logging.basicConfig(
@@ -37,7 +39,7 @@ class MainHandler(RequestHandler):
                 'ws_list': self.reverse_url('ws_list'),
                 'label': self.reverse_url('label'),
                 'ws_export': self.reverse_url_one_arg('ws_export'),
-                'proxy': self.reverse_url('proxy'),
+                'proxy': self.reverse_url_one_arg('proxy'),
             },
         )
 
@@ -73,28 +75,30 @@ class WorkspaceHandler(RequestHandler):
     def get(self, ws_id):
         session = Session()
         ws = session.query(Workspace).get(int(ws_id))
-        self.write(workspace_to_json(session, ws))
+        labeled = get_labeled(session, ws)
+        ws_data = {
+            'id': ws.id,
+            'name': ws.name,
+            'labels': [label.text for label in
+                       session.query(Label).filter_by(workspace=ws.id)],
+            'urls': [page.url for page in
+                     session.query(Page).filter_by(workspace=ws.id)],
+            'labeled': labeled,
+        }
+        self.write(ws_data)
 
 
-def workspace_to_json(session: Session, ws: Workspace) -> Dict:
+def get_labeled(session: Session, ws: Workspace) -> Dict:
     labeled = {}
     for element_label, page_url, label_text in (
             session.query(ElementLabel, Page.url, Label.text).join(Page)
-            .filter(Page.workspace == ws.id)
-            .all()):
+                    .filter(Page.workspace == ws.id)
+                    .all()):
         labeled.setdefault(page_url, {})[element_label.selector] = {
             'selector': element_label.selector,
             'text': label_text,
         }
-    return {
-        'id': ws.id,
-        'name': ws.name,
-        'labels': [label.text for label in
-                   session.query(Label).filter_by(workspace=ws.id)],
-        'urls': [page.url for page in
-                 session.query(Page).filter_by(workspace=ws.id)],
-        'labeled': labeled,
-    }
+    return labeled
 
 
 class LabelHandler(RequestHandler):
@@ -127,66 +131,70 @@ class ExportHandler(RequestHandler):
     def get(self, ws_id):
         session = Session()
         ws = session.query(Workspace).get(int(ws_id))
+        labeled = get_labeled(session, ws)
+        pages = list(session.query(Page).filter_by(workspace=ws.id))
+        ws_data = {
+            'id': ws.id,
+            'name': ws.name,
+            'pages': [
+                {'id': page.id,
+                 'url': page.url,
+                 'labeled': {
+                     selector: label['text']
+                     for selector, label in labeled.get(page.url, {}).items()},
+                 } for page in pages],
+        }
+        with tempfile.NamedTemporaryFile('wb', delete=False) as tempf:
+            with zipfile.ZipFile(tempf, mode='w') as archive:
+                archive.writestr('meta.json', json.dumps(ws_data, indent=True))
+                for page in pages:
+                    save_page_for_offline(archive, session, page)
+        try:
+            with open(tempf.name, 'rb') as f:
+                contents = f.read()
+        finally:
+            os.unlink(tempf.name)
         self.set_header('Content-Disposition',
-                        'attachment; filename="{}.json"'.format(ws.name))
-        self.set_header('Content-Type', 'text/json')
-        ws_data = workspace_to_json(session, ws)
-        labeled = {url: {
-            selector: label['text'] for selector, label in url_labeled.items()}
-                   for url, url_labeled in ws_data.pop('labeled').items()}
-        ws_data['pages'] = {
-            url: {
-                'url': url,
-                'labeled': labeled.get(url, {}),
-            } for url in ws_data.pop('urls', [])}
-        self.write(json.dumps(ws_data, indent=True))
+                        'attachment; filename="workspace_{}.zip"'.format(ws.id))
+        self.set_header('Content-Type', 'application/zip')
+        self.write(contents)
 
 
 class ProxyHandler(RequestHandler):
     @coroutine
-    def get(self):
+    def get(self, ws_id):
         session = Session()
+        ws = session.query(Workspace).get(int(ws_id))
         url = self.get_argument('url')
-        referrer = self.get_argument('referer', None)
-        page = session.query(Page).filter_by(url=referrer or url).one()
+        referer = self.get_argument('referer', None)
+        page = session.query(Page).filter_by(
+            workspace=ws.id, url=referer or url).one()
 
         headers = self.request.headers.copy()
-        for field in ['cookie', 'referrer']:
+        for field in ['cookie', 'referer']:
             try:
                 del headers[field]
             except KeyError:
                 pass
-        if referrer:
-            headers['referrer'] = referrer
+        if referer:
+            headers['referer'] = referer
 
         httpclient = AsyncHTTPClient()
         session = Session()
         response = get_response(session, page, url)
         if response is None:
             response = yield httpclient.fetch(url, raise_error=False)
-            save_response(session, page, url, response)
+            save_response(session, page, url, response, is_main=referer is None)
 
-        proxy_url_base = self.reverse_url('proxy')
+        proxy_url_base = self.reverse_url('proxy', ws.id)
 
         def proxy_url(resource_url):
             return '{}?{}'.format(proxy_url_base, urlencode({
                 'url': resource_url, 'referer': page.url,
             }))
 
-        body = response.body or b''
-        html_transformed = False
-        content_type = response.headers.get('content-type', '')
-        if content_type.startswith('text/html'):
-            encoding = http_content_type_encoding(content_type)
-            base_url = get_base_url(body, url, encoding)
-            html_transformed = True
-            body = transform_html(
-                body, encoding=encoding, base_url=base_url, proxy_url=proxy_url)
-        elif content_type.startswith('text/css'):
-            css_source = body.decode('utf8', 'ignore')
-            body = process_css(
-                css_source, base_uri=url, proxy_url=proxy_url).encode('utf8')
-
+        html_transformed, body = transformed_response_body(
+            response, inject_scripts_and_proxy, proxy_url)
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
         for k, v in response.headers.get_all():
@@ -198,14 +206,11 @@ class ProxyHandler(RequestHandler):
         self.finish()
 
 
-def transform_html(
-        html: bytes, encoding: str, base_url: str, proxy_url) -> bytes:
-    soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
+def inject_scripts_and_proxy(soup: BeautifulSoup, base_url: str, proxy_url):
+    remove_scripts_and_proxy(soup, base_url=base_url, proxy_url=proxy_url)
     body = soup.find('body')
     if not body:
-        return html
-
-    remove_scripts_and_proxy(soup, base_url=base_url, proxy_url=proxy_url)
+        return
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
@@ -218,8 +223,6 @@ def transform_html(
     css_tag.string = injected_css
     # TODO - create "head" if none exists
     soup.find('head').append(css_tag)
-
-    return soup.encode()
 
 
 def main():
@@ -234,7 +237,7 @@ def main():
          URLSpec(r'/workspace/(\d+)/', WorkspaceHandler),
          URLSpec(r'/label/', LabelHandler, name='label'),
          URLSpec(r'/export/(\d+)/', ExportHandler, name='ws_export'),
-         URLSpec(r'/proxy/', ProxyHandler, name='proxy'),
+         URLSpec(r'/proxy/(\d+)/', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,
         static_prefix='/static/',
