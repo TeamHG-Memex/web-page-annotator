@@ -18,7 +18,7 @@ from w3lib.html import get_base_url
 
 from models import Base, get_response, save_response, Workspace, Label, Page, \
     ElementLabel
-from transform_html import descriptify_and_proxy, process_css
+from transform_html import remove_scripts_and_proxy, process_css
 
 
 logging.basicConfig(
@@ -157,26 +157,26 @@ class ProxyHandler(RequestHandler):
             response = yield httpclient.fetch(url, raise_error=False)
             save_response(session, page, url, response)
 
-        body = response.body or b''
-        html_transformed = False
         proxy_url_base = self.reverse_url('proxy')
 
         def proxy_url(resource_url):
             return '{}?{}'.format(proxy_url_base, urlencode({
-                'url': resource_url,
-                'referer': referrer or url,
+                'url': resource_url, 'referer': page.url,
             }))
 
+        body = response.body or b''
+        html_transformed = False
         content_type = response.headers.get('content-type', '')
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)
             base_url = get_base_url(body, url, encoding)
-            body, html_transformed = transform_html(
+            html_transformed = True
+            body = transform_html(
                 body, encoding=encoding, base_url=base_url, proxy_url=proxy_url)
         elif content_type.startswith('text/css'):
             css_source = body.decode('utf8', 'ignore')
             body = process_css(
-                css_source, base_uri=url, proxy_url=proxy_url)
+                css_source, base_uri=url, proxy_url=proxy_url).encode('utf8')
 
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
@@ -194,9 +194,9 @@ def transform_html(
     soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
     body = soup.find('body')
     if not body:
-        return html, True
+        return html
 
-    descriptify_and_proxy(soup, base_url=base_url, proxy_url=proxy_url)
+    remove_scripts_and_proxy(soup, base_url=base_url, proxy_url=proxy_url)
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
@@ -210,7 +210,7 @@ def transform_html(
     # TODO - create "head" if none exists
     soup.find('head').append(css_tag)
 
-    return soup.encode(), True
+    return soup.encode()
 
 
 def main():

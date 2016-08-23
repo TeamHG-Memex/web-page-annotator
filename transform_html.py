@@ -1,10 +1,12 @@
 import re
 import html.entities
-from urllib.parse import urlparse, urljoin
 from typing import Callable
+from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup, Tag
 
+
+# Logic is based on slyd.html from portia, but using BeautifulSoup
 
 URI_ATTRIBUTES = {'action', 'background', 'cite', 'classid', 'codebase',
                   'data', 'href', 'longdesc', 'profile', 'src', 'usemap'}
@@ -15,7 +17,7 @@ _ALLOWED_CHARS_RE = re.compile('[^!-~]') # [!-~] = ascii printable characters
 ProxyUrl = Callable[[str], str]
 
 
-def descriptify_and_proxy(
+def remove_scripts_and_proxy(
         soup: BeautifulSoup, base_url: str, proxy_url: ProxyUrl):
     """ Clean JavaScript in a html source string
     and change urls to make them go via the proxy.
@@ -100,7 +102,7 @@ def wrap_url(url, base_url, proxy_url):
     return proxy_url(unescape(url))
 
 
-def process_css(css_source: str, base_uri: str, proxy_url: ProxyUrl):
+def process_css(css_source: str, base_uri: str, proxy_url: ProxyUrl) -> str:
     """
     Wraps urls in css source.
 
