@@ -147,7 +147,7 @@ var Workspace = React.createClass({
                 labels={ this.state.labels }
                 onWorkspaceDiscardEdit={ this.onWorkspaceDiscardEdit }
                 onWorkspaceFinishEdit={ this.onWorkspaceFinishEdit }
-                onWorkspaceSaved={ this.onWorkspaceSaved }/>;
+                />;
         }
         var btnClasses = function (enabled) {
             return 'waves-effect waves-light btn' + (enabled ? '' : ' disabled');
@@ -205,9 +205,6 @@ var Workspace = React.createClass({
             updated.urlIdx = 0;
         }
         updated.editingWorkspace = false;
-        this.setState(updated);
-    },
-    onWorkspaceSaved: function (updated) {
         this.setState(updated);
     },
     onWorkspaceDiscardEdit: function () {
@@ -353,10 +350,15 @@ var WorkspaceSettings = React.createClass({
             id: this.props.id,
             name: this.props.name,
             urls_text: this.props.urls.join('\n'),
-            labels_text: this.props.labels.join('\n')
+            labels_text: this.props.labels.join('\n'),
+            saving: false
         };
     },
     render: function () {
+        var btnClass = 'waves-effect waves-light btn-flat';
+        if (this.state.saving) {
+            btnClass += ' disabled';
+        }
         return <div id="workspace-settings" className="modal modal-fixed-footer">
                 <div className="modal-content">
                     <h4>Workspace setup</h4>
@@ -377,9 +379,9 @@ var WorkspaceSettings = React.createClass({
                     <label>Urls (one on a line)</label>
                 </div>
                 <div className="modal-footer">
-                    <a className="waves-effect waves-light btn-flat"
+                    <a className={ btnClass }
                        onClick={ this.onOk }>ok</a>{ ' ' }
-                    <a className="waves-effect waves-light btn-flat"
+                    <a className={ btnClass }
                        onClick={ this.onCancel }>cancel</a>{ ' ' }
                 </div>
             </div>;
@@ -401,16 +403,18 @@ var WorkspaceSettings = React.createClass({
             urls: this.state.urls_text.trim().split('\n'),
             labels: this.state.labels_text.trim().split('\n')
         };
-        this.props.onWorkspaceFinishEdit(ws);
+        this.setState({saving: true});
         $.ajax({
             url: URLS.ws_list,
             dataType: 'json',
             type: 'POST',
             data: JSON.stringify(ws),
             success: function (data) {
-                this.props.onWorkspaceSaved(data);
+                this.setState({saving: false});
+                this.props.onWorkspaceFinishEdit(ws);
             }.bind(this),
             error: function(xhr, status, err) {
+                this.setState({saving: false});
                 // TODO
                 console.error(this.props.url, status, err.toString());
             }.bind(this)

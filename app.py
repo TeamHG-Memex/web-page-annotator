@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlencode
 from typing import Dict
 
 from bs4 import BeautifulSoup
@@ -30,7 +31,18 @@ Session = sessionmaker()
 
 class MainHandler(RequestHandler):
     def get(self):
-        self.render('templates/main.html')
+        self.render(
+            'templates/main.html',
+            urls={
+                'ws_list': self.reverse_url('ws_list'),
+                'label': self.reverse_url('label'),
+                'ws_export': self.reverse_url_one_arg('ws_export'),
+                'proxy': self.reverse_url('proxy'),
+            },
+        )
+
+    def reverse_url_one_arg(self, name):
+        return self.reverse_url(name, '0').split('0')[0]
 
 
 class WorkspaceListHandler(RequestHandler):
@@ -124,26 +136,37 @@ class ExportHandler(RequestHandler):
 class ProxyHandler(RequestHandler):
     @coroutine
     def get(self):
+        session = Session()
         url = self.get_argument('url')
         referrer = self.get_argument('referer', None)
+        page = session.query(Page).filter_by(url=referrer or url).one()
 
         headers = self.request.headers.copy()
         for field in ['cookie', 'referrer']:
-            try: del headers[field]
-            except KeyError: pass
+            try:
+                del headers[field]
+            except KeyError:
+                pass
         if referrer:
             headers['referrer'] = referrer
 
         httpclient = AsyncHTTPClient()
         session = Session()
-        response = get_response(session, url)
+        response = get_response(session, page, url)
         if response is None:
             response = yield httpclient.fetch(url, raise_error=False)
-            save_response(session, url, response)
+            save_response(session, page, url, response)
 
         body = response.body or b''
         html_transformed = False
-        proxy_url = self.reverse_url('proxy')
+        proxy_url_base = self.reverse_url('proxy')
+
+        def proxy_url(resource_url):
+            return '{}?{}'.format(proxy_url_base, urlencode({
+                'url': resource_url,
+                'referer': referrer or url,
+            }))
+
         content_type = response.headers.get('content-type', '')
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)
@@ -153,7 +176,7 @@ class ProxyHandler(RequestHandler):
         elif content_type.startswith('text/css'):
             css_source = body.decode('utf8', 'ignore')
             body = process_css(
-                css_source, base_uri=referrer or url, proxy_url=proxy_url)
+                css_source, base_uri=url, proxy_url=proxy_url)
 
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
@@ -166,8 +189,8 @@ class ProxyHandler(RequestHandler):
         self.finish()
 
 
-def transform_html(html: bytes, encoding: str, base_url: str, proxy_url: str)\
-        -> bytes:
+def transform_html(
+        html: bytes, encoding: str, base_url: str, proxy_url) -> bytes:
     soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
     body = soup.find('body')
     if not body:
@@ -202,7 +225,7 @@ def main():
          URLSpec(r'/workspace/(\d+)/', WorkspaceHandler),
          URLSpec(r'/label/', LabelHandler, name='label'),
          URLSpec(r'/export/(\d+)/', ExportHandler, name='ws_export'),
-         URLSpec(r'/proxy', ProxyHandler, name='proxy'),
+         URLSpec(r'/proxy/', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,
         static_prefix='/static/',

@@ -1,6 +1,7 @@
 import re
 import html.entities
-from urllib.parse import urlparse, urljoin, urlencode
+from urllib.parse import urlparse, urljoin
+from typing import Callable
 
 from bs4 import BeautifulSoup, Tag
 
@@ -11,7 +12,11 @@ BLOCKED_TAGNAMES = {'script', 'noscript', 'object', 'embed'}
 _ALLOWED_CHARS_RE = re.compile('[^!-~]') # [!-~] = ascii printable characters
 
 
-def descriptify_and_proxy(soup: BeautifulSoup, base_url: str, proxy_url: str):
+ProxyUrl = Callable[[str], str]
+
+
+def descriptify_and_proxy(
+        soup: BeautifulSoup, base_url: str, proxy_url: ProxyUrl):
     """ Clean JavaScript in a html source string
     and change urls to make them go via the proxy.
     """
@@ -27,7 +32,7 @@ def descriptify_and_proxy(soup: BeautifulSoup, base_url: str, proxy_url: str):
 
 
 def _process_attr(
-        key: str, val: str, element: Tag, base_url: str, proxy_url: str):
+        key: str, val: str, element: Tag, base_url: str, proxy_url: ProxyUrl):
     # Empty intrinsic events
     if key.startswith('on') or key == 'http-equiv':
         element.attrs[key] = ''
@@ -84,7 +89,6 @@ def unescape(s):
 
 def wrap_url(url, base_url, proxy_url):
     url = url.strip()
-    referer = urlparse(base_url.strip()).netloc
     url = urljoin(base_url, url)
     parsed = urlparse(url)
 
@@ -93,18 +97,16 @@ def wrap_url(url, base_url, proxy_url):
     if parsed.scheme not in ('', 'http', 'https', 'ftp'):
         return 'data:text/plain,invalid_scheme'
 
-    return '{}?{}'.format(proxy_url, urlencode({
-        'url': unescape(url),
-        'referer': referer,
-    }))
+    return proxy_url(unescape(url))
 
 
-def process_css(css_source, base_uri, proxy_url):
+def process_css(css_source: str, base_uri: str, proxy_url: ProxyUrl):
     """
     Wraps urls in css source.
 
     >>> url = 'http://scrapinghub.com/style.css'
-    >>> process_css('@import "{}"'.format(url), url, '/proxy') # doctest: +ELLIPSIS
+    >>> proxy_url = lambda x: '/proxy?url={}'.format(x)
+    >>> process_css('@import "{}"'.format(url), url, proxy_url) # doctest: +ELLIPSIS
     '@import "/proxy?..."'
     """
     def _absolutize_css_import(match):

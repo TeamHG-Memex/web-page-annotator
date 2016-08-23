@@ -1,7 +1,8 @@
 import json
 from typing import List
 
-from sqlalchemy import Column, Integer, Text, LargeBinary, ForeignKey
+from sqlalchemy import Column, Integer, Text, LargeBinary, ForeignKey, \
+    UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from tornado.httpclient import HTTPResponse
@@ -41,7 +42,9 @@ class Page(Base):
     workspace = Column(ForeignKey(Workspace.id))
     url = Column(Text)
 
-    # TODO - workspace and url are unique together
+    __table_args__ = (
+        UniqueConstraint('workspace', 'url', name='_workspace_url'),
+    )
 
 
 class Label(Base):
@@ -51,7 +54,9 @@ class Label(Base):
     workspace = Column(ForeignKey(Workspace.id))
     text = Column(Text)
 
-    # TODO - workspace and text are unique together
+    __table_args__ = (
+        UniqueConstraint('workspace', 'text', name='_workspace_text'),
+    )
 
 
 class ElementLabel(Base):
@@ -62,20 +67,28 @@ class ElementLabel(Base):
     selector = Column(Text)
     label = Column(ForeignKey(Label.id))
 
-    # TODO - page and selector are unique together
+    __table_args__ = (
+        UniqueConstraint('page', 'selector', name='_page_selector'),
+    )
 
 
 class Response(Base):
     __tablename__ = 'responses'
 
     id = Column(Integer, primary_key=True)
-    url = Column(Text, unique=True)
+    url = Column(Text)
     _headers = Column(Text)
     body = Column(LargeBinary)
-    # TODO - link to page? Or this will change anyway
+    page = Column(ForeignKey(Page.id))
 
-    def __init__(self, *, url: str, headers: HTTPHeaders, body: bytes):
+    __table_args__ = (
+        UniqueConstraint('page', 'url', name='_page_url'),
+    )
+
+    def __init__(self, *,
+                 url: str, page: Page, headers: HTTPHeaders, body: bytes):
         self.url = url
+        self.page = page.id
         self._headers = dump_headers(headers)
         self.body = body
 
@@ -98,13 +111,15 @@ def load_headers(data: str) -> HTTPHeaders:
     return headers
 
 
-def get_response(session, url: str) -> Response:
-    return session.query(Response).filter_by(url=url).one_or_none()
+def get_response(session, page: Page, url: str) -> Response:
+    return session.query(Response).filter_by(page=page.id, url=url)\
+        .one_or_none()
 
 
-def save_response(session, url: str, response: HTTPResponse):
+def save_response(session, page: Page, url: str, response: HTTPResponse):
     session.add(Response(
         url=url,
+        page=page,
         headers=response.headers,
         body=response.body))
     try:

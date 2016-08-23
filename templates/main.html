@@ -17,12 +17,7 @@
 <script type="text/javascript" src="{{ static_url('js/jquery-2.1.1.min.js') }}"></script>
 <script type="text/javascript" src="{{ static_url('js/materialize.min.js') }}"></script>
 <script type="text/javascript">
-    var URLS = {
-        ws_list: "{{ reverse_url('ws_list') }}",
-        label: "{{ reverse_url('label') }}",
-        ws_export: "{{ reverse_url('ws_export', '0').split('0')[0] }}",
-        proxy: "{{ reverse_url('proxy') }}"
-    };
+    var URLS = {% raw json_encode(urls) %};
 </script>
 <script type="text/babel" src="{{ static_url('js/app.jsx') }}"></script>
 
