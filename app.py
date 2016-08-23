@@ -18,7 +18,7 @@ from w3lib.html import get_base_url
 
 from models import Base, get_response, save_response, Workspace, Label, Page, \
     ElementLabel
-from transform_html import descriptify_and_proxy
+from transform_html import descriptify_and_proxy, process_css
 
 
 logging.basicConfig(
@@ -144,13 +144,17 @@ class ProxyHandler(RequestHandler):
 
         body = response.body or b''
         html_transformed = False
+        proxy_url = self.reverse_url('proxy')
         content_type = response.headers.get('content-type', '')
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)
             base_url = get_base_url(body, url, encoding)
             body, html_transformed = transform_html(
-                body, encoding=encoding, base_url=base_url,
-                proxy_url=self.reverse_url('proxy'))
+                body, encoding=encoding, base_url=base_url, proxy_url=proxy_url)
+        elif content_type.startswith('text/css'):
+            css_source = body.decode('utf8', 'ignore')
+            body = process_css(
+                css_source, base_uri=referrer or url, proxy_url=proxy_url)
 
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
