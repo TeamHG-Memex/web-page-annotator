@@ -293,7 +293,8 @@ var IFrame = React.createClass({
             var labeled = this.props.labeled;
             if (labeled) {
                 var notifyChild = function () {
-                    if (iframe.contentWindow.location.pathname === this.proxyUrl() &&
+                    var iframeLoc = iframe.contentWindow.location;
+                    if ((iframeLoc.pathname + iframeLoc.search) === this.proxyUrl() &&
                             iframe.contentDocument.readyState === 'complete') {
                         Object.keys(labeled).forEach(function (selector) {
                             notifyChildOfLabel(labeled[selector], iframe);

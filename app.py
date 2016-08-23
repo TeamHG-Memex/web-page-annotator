@@ -18,7 +18,7 @@ from w3lib.html import get_base_url
 
 from models import Base, get_response, save_response, Workspace, Label, Page, \
     ElementLabel
-from transform_html import html4annotation
+from transform_html import descriptify_and_proxy
 
 
 logging.basicConfig(
@@ -138,17 +138,19 @@ class ProxyHandler(RequestHandler):
         httpclient = AsyncHTTPClient()
         session = Session()
         response = get_response(session, url)
-        if True or response is None:
+        if response is None:
             response = yield httpclient.fetch(url, raise_error=False)
             save_response(session, url, response)
 
-        body = response.body
+        body = response.body or b''
         html_transformed = False
         content_type = response.headers.get('content-type', '')
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)
             base_url = get_base_url(body, url, encoding)
-            body, html_transformed = transform_html(body, encoding, base_url)
+            body, html_transformed = transform_html(
+                body, encoding=encoding, base_url=base_url,
+                proxy_url=self.reverse_url('proxy'))
 
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
@@ -161,15 +163,14 @@ class ProxyHandler(RequestHandler):
         self.finish()
 
 
-def transform_html(html: bytes, encoding: str, base_url: str) -> bytes:
-    original_html = html
-    html = html.decode(encoding)
-    html = html4annotation(html, base_url, proxy_resources=True)
-
-    soup = BeautifulSoup(html, 'lxml')
+def transform_html(html: bytes, encoding: str, base_url: str, proxy_url: str)\
+        -> bytes:
+    soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
     body = soup.find('body')
     if not body:
         return html, True
+
+    descriptify_and_proxy(soup, base_url=base_url, proxy_url=proxy_url)
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
@@ -181,26 +182,9 @@ def transform_html(html: bytes, encoding: str, base_url: str) -> bytes:
         Path(STATIC_ROOT) / 'css' / 'injected.css').read_text('utf8')
     css_tag.string = injected_css
     # TODO - create "head" if none exists
-    head = soup.find('head')
-    if not head:
-        import IPython; IPython.embed()
-    head.append(css_tag)
+    soup.find('head').append(css_tag)
 
     return soup.encode(), True
-
-
-def is_full(url: str) -> bool:
-    return url.startswith('http://') or url.startswith('https://')
-
-
-def fixed_full_url(url: str) -> str:
-    # TODO - do it properly, this must be tornado removing slash
-    if not is_full(url):
-        if url.startswith('http:/'):
-            url = 'http://' + url[len('http:/'):]
-        if url.startswith('https:/'):
-            url = 'https://' + url[len('https:/'):]
-    return url
 
 
 def main():
