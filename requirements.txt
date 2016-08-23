@@ -3,3 +3,4 @@ lxml==3.6.1
 sqlalchemy==1.0.14
 tornado==4.4.1
 w3lib==1.15.0
+https://github.com/scrapy/scrapely.git

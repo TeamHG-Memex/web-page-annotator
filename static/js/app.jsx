@@ -277,10 +277,13 @@ var IFrame = React.createClass({
     render: function () {
         // TODO (later): handle resize
         return <iframe id="child-page"
-                       src={ '/' + this.props.url }
+                       src={ this.proxyUrl() }
                        ref={ this.ref.bind(this) }
                        >
         </iframe>;
+    },
+    proxyUrl: function () {
+        return URLS.proxy + '?url=' + window.encodeURIComponent(this.props.url);
     },
     ref: function (iframe) {
         if (iframe) {
@@ -290,7 +293,7 @@ var IFrame = React.createClass({
             var labeled = this.props.labeled;
             if (labeled) {
                 var notifyChild = function () {
-                    if (iframe.contentWindow.location.pathname === '/' + this.props.url &&
+                    if (iframe.contentWindow.location.pathname === this.proxyUrl() &&
                             iframe.contentDocument.readyState === 'complete') {
                         Object.keys(labeled).forEach(function (selector) {
                             notifyChildOfLabel(labeled[selector], iframe);

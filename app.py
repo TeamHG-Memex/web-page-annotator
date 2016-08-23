@@ -14,12 +14,15 @@ from tornado.gen import coroutine
 from tornado.web import Application, RequestHandler, URLSpec
 from tornado.httpclient import AsyncHTTPClient
 from w3lib.encoding import http_content_type_encoding
+from w3lib.html import get_base_url
 
 from models import Base, get_response, save_response, Workspace, Label, Page, \
     ElementLabel
+from transform_html import html4annotation
 
 
-logging.basicConfig(format='[%(levelname)s] %(asctime)s %(message)s')
+logging.basicConfig(
+    format='[%(levelname)s] %(asctime)s %(message)s', level=logging.INFO)
 ROOT = Path(__file__).parent
 STATIC_ROOT = ROOT / 'static'
 
@@ -121,45 +124,36 @@ class ExportHandler(RequestHandler):
 
 class ProxyHandler(RequestHandler):
     @coroutine
-    def get(self, path):
-        referrer = self.request.headers.get('Referer')
-        if self.request.arguments:
-            path += '?' + urlencode(
-                [(k, v) for k, vs in self.request.arguments.items()
-                 for v in vs])
+    def get(self):
+        url = self.get_argument('url')
+        referrer = self.get_argument('referer', None)
 
         headers = self.request.headers.copy()
         for field in ['cookie', 'referrer']:
             try: del headers[field]
             except KeyError: pass
         if referrer:
-            r_path = unquote(urlsplit(referrer).path.lstrip('/'))
-            r_path = fixed_full_url(r_path)
-            if is_full(r_path):
-                headers['referrer'] = r_path
-                if not is_full(path):
-                    path = urljoin(r_path, path)
-                    # FIXME - do we loose referrer here?
-                    self.redirect('/' + path)
-                    return
+            headers['referrer'] = referrer
 
         httpclient = AsyncHTTPClient()
         session = Session()
-        response = get_response(session, path)
-        if response is None:
-            response = yield httpclient.fetch(path, raise_error=False)
-            save_response(session, path, response)
+        response = get_response(session, url)
+        if True or response is None:
+            response = yield httpclient.fetch(url, raise_error=False)
+            save_response(session, url, response)
 
         body = response.body
-        content_type = response.headers.get('content-type', '')
         html_transformed = False
+        content_type = response.headers.get('content-type', '')
         if content_type.startswith('text/html'):
             encoding = http_content_type_encoding(content_type)
-            body, html_transformed = transform_html(body, encoding)
+            base_url = get_base_url(body, url, encoding)
+            body, html_transformed = transform_html(body, encoding, base_url)
 
         self.write(body)
+        proxied_headers = {'content-type'}  # TODO - other?
         for k, v in response.headers.get_all():
-            if k.lower() not in {'content-length', 'set-cookie'}:
+            if k.lower() in proxied_headers:
                 if html_transformed and k.lower() == 'content-type':
                     # change encoding (always utf8 now)
                     v = 'text/html; charset=UTF-8'
@@ -167,11 +161,15 @@ class ProxyHandler(RequestHandler):
         self.finish()
 
 
-def transform_html(html: bytes, encoding: str) -> bytes:
-    soup = BeautifulSoup(html, 'lxml', from_encoding=encoding)
+def transform_html(html: bytes, encoding: str, base_url: str) -> bytes:
+    original_html = html
+    html = html.decode(encoding)
+    html = html4annotation(html, base_url, proxy_resources=True)
+
+    soup = BeautifulSoup(html, 'lxml')
     body = soup.find('body')
     if not body:
-        return html, False
+        return html, True
 
     js_tag = soup.new_tag('script', type='text/javascript')
     injected_js = (Path(STATIC_ROOT) / 'js' / 'injected.js').read_text('utf8')
@@ -183,7 +181,10 @@ def transform_html(html: bytes, encoding: str) -> bytes:
         Path(STATIC_ROOT) / 'css' / 'injected.css').read_text('utf8')
     css_tag.string = injected_css
     # TODO - create "head" if none exists
-    soup.find('head').append(css_tag)
+    head = soup.find('head')
+    if not head:
+        import IPython; IPython.embed()
+    head.append(css_tag)
 
     return soup.encode(), True
 
@@ -210,11 +211,11 @@ def main():
     args = parser.parse_args()
     app = Application(
         [URLSpec(r'/', MainHandler, name='main'),
-         URLSpec(r'/~wpa/workspace/', WorkspaceListHandler, name='ws_list'),
-         URLSpec(r'/~wpa/workspace/(\d+)/', WorkspaceHandler),
-         URLSpec(r'/~wpa/label/', LabelHandler, name='label'),
-         URLSpec(r'/~wpa/export/(\d+)/', ExportHandler, name='ws_export'),
-         URLSpec(r'/(.*)', ProxyHandler, name='proxy'),
+         URLSpec(r'/workspace/', WorkspaceListHandler, name='ws_list'),
+         URLSpec(r'/workspace/(\d+)/', WorkspaceHandler),
+         URLSpec(r'/label/', LabelHandler, name='label'),
+         URLSpec(r'/export/(\d+)/', ExportHandler, name='ws_export'),
+         URLSpec(r'/proxy', ProxyHandler, name='proxy'),
         ],
         debug=args.debug,
         static_prefix='/static/',
@@ -224,6 +225,7 @@ def main():
         'sqlite:///{}'.format(ROOT / 'db.sqlite'), echo=args.echo)
     Session.configure(bind=engine)
     Base.metadata.create_all(engine)
+    logging.info('Listening on port {}'.format(args.port))
     app.listen(args.port)
     tornado.ioloop.IOLoop.current().start()
 
