@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 from tornado.gen import coroutine
-from tornado.httpclient import AsyncHTTPClient
+from tornado.httpclient import AsyncHTTPClient, HTTPError
 from tornado.web import RequestHandler
 
 from config import Session, STATIC_ROOT
@@ -34,8 +34,11 @@ class ProxyHandler(RequestHandler):
         session = Session()
         response = get_response(session, page, url)
         if response is None:
-            # TODO - do not save errors
-            response = yield httpclient.fetch(url, raise_error=False)
+            try:
+                response = yield httpclient.fetch(url)
+            except HTTPError as e:
+                self.set_status(e.code, reason=e.message)
+                return
             response = save_response(
                 session, page, url, response, is_main=referer is None)
 
