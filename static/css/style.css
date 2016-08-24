@@ -25,3 +25,8 @@
     position: absolute;
     top: 100px;
 }
+
+#child-page-prefetch {
+    position: absolute;
+    z-index: -1;
+}

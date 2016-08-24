@@ -121,7 +121,7 @@ var Workspace = React.createClass({
     },
     render: function () {
         var url = this.currentUrl();
-        var labelDropdown, iframe, workspaceSettings;
+        var labelDropdown, iframe, prefetchIFrame, workspaceSettings;
         if (url) {
             if (this.state.editingLabelAt) {
                 var urlLabeled = this.state.labeled[url];
@@ -137,7 +137,11 @@ var Workspace = React.createClass({
                 />
             }
             var labeled = this.state.labeled[url];
-            iframe = <IFrame wsId={ this.state.id } url={ url } labeled={ labeled }/>
+            iframe = <IFrame wsId={ this.state.id } url={ url } labeled={ labeled }/>;
+            var nextUrl = this.state.urls[this.state.urlIdx + 1];
+            if (nextUrl) {
+                prefetchIFrame = <PrefetchIFrame wsId={ this.state.id } url={ nextUrl }/>;
+            }
         }
         if (this.state.editingWorkspace) {
             workspaceSettings = <WorkspaceSettings
@@ -174,6 +178,7 @@ var Workspace = React.createClass({
                    onClick={ this.onClose }>close</a>{' '}
             </div>
             { iframe }
+            { prefetchIFrame }
             { labelDropdown }
             { workspaceSettings }
         </div>;
@@ -279,14 +284,10 @@ var IFrame = React.createClass({
     render: function () {
         // TODO (later): handle resize
         return <iframe id="child-page"
-                       src={ this.proxyUrl() }
+                       src={ proxyUrl(this.props) }
                        ref={ this.ref.bind(this) }
                        >
         </iframe>;
-    },
-    proxyUrl: function () {
-        return URLS.proxy + this.props.wsId +
-            '/?url=' + window.encodeURIComponent(this.props.url);
     },
     ref: function (iframe) {
         if (iframe) {
@@ -297,7 +298,7 @@ var IFrame = React.createClass({
             if (labeled) {
                 var notifyChild = function () {
                     var iframeLoc = iframe.contentWindow.location;
-                    if ((iframeLoc.pathname + iframeLoc.search) === this.proxyUrl() &&
+                    if ((iframeLoc.pathname + iframeLoc.search) === proxyUrl(this.props) &&
                             iframe.contentDocument.readyState === 'complete') {
                         Object.keys(labeled).forEach(function (selector) {
                             notifyChildOfLabel(labeled[selector], iframe);
@@ -311,6 +312,16 @@ var IFrame = React.createClass({
                 notifyChild();
             }
         }
+    }
+});
+
+function proxyUrl(props) {
+    return URLS.proxy + props.wsId + '/?url=' + window.encodeURIComponent(props.url);
+}
+
+var PrefetchIFrame = React.createClass({
+    render: function () {
+        return <iframe id="child-page-prefetch" src={ proxyUrl(this.props) }></iframe>;
     }
 });
 
