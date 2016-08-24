@@ -295,22 +295,28 @@ var IFrame = React.createClass({
             iframe.style.height = (window.innerHeight - iframeRect.top) + 'px';
             iframe.style.width = window.innerWidth + 'px';
             var labeled = this.props.labeled;
-            if (labeled) {
-                var notifyChild = function () {
-                    var iframeLoc = iframe.contentWindow.location;
-                    if ((iframeLoc.pathname + iframeLoc.search) === proxyUrl(this.props) &&
-                            iframe.contentDocument.readyState === 'complete') {
+            var needsLoadNotify = false;
+            var notifyChild = function () {
+                var iframeLoc = iframe.contentWindow.location;
+                var loaded = iframe.contentDocument.readyState === 'complete';
+                needsLoadNotify = needsLoadNotify || !loaded;
+                if (loaded && (iframeLoc.pathname + iframeLoc.search) ===
+                        proxyUrl(this.props)) {
+                    if (labeled) {
                         Object.keys(labeled).forEach(function (selector) {
                             notifyChildOfLabel(labeled[selector], iframe);
                         });
-                    } else {
-                        // We could do the readyState check with an event instead of
-                        // a busy wait, but I don't know how to do it with location check.
-                        window.setTimeout(notifyChild, 50);
                     }
-                }.bind(this);
-                notifyChild();
-            }
+                    if (needsLoadNotify) {
+                        Materialize.toast('Ready', 2000);
+                    }
+                } else {
+                    // We could do the readyState check with an event instead of
+                    // a busy wait, but I don't know how to do it with location check.
+                    window.setTimeout(notifyChild, 50);
+                }
+            }.bind(this);
+            notifyChild();
         }
     }
 });
