@@ -27,7 +27,7 @@ def transformed_response_body(
         proxy_url: ProxyUrl) -> Tuple[bool, bytes]:
 
     body = response.body or b''
-    content_type = response.headers.get('content-type', '')
+    content_type = (response.headers or {}).get('content-type', '')
     if content_type.startswith('text/html'):
         encoding = http_content_type_encoding(content_type)
         try:

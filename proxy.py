@@ -1,3 +1,4 @@
+from http.client import responses as status_codes
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -34,13 +35,11 @@ class ProxyHandler(RequestHandler):
         session = Session()
         response = get_response(session, page, url)
         if response is None:
-            try:
-                response = yield httpclient.fetch(url)
-            except HTTPError as e:
-                self.set_status(e.code, reason=e.message)
-                return
+            response = yield httpclient.fetch(url, raise_error=False)
             response = save_response(
                 session, page, url, response, is_main=referer is None)
+        reason = None if response.code in status_codes else 'Unknown'
+        self.set_status(response.code, reason=reason)
 
         proxy_url_base = self.reverse_url('proxy', ws.id)
 
@@ -53,12 +52,13 @@ class ProxyHandler(RequestHandler):
             response, inject_scripts_and_proxy, proxy_url)
         self.write(body)
         proxied_headers = {'content-type'}  # TODO - other?
-        for k, v in response.headers.get_all():
-            if k.lower() in proxied_headers:
-                if html_transformed and k.lower() == 'content-type':
-                    # change encoding (always utf8 now)
-                    v = 'text/html; charset=UTF-8'
-                self.set_header(k, v)
+        if response.headers:
+            for k, v in response.headers.get_all():
+                if k.lower() in proxied_headers:
+                    if html_transformed and k.lower() == 'content-type':
+                        # change encoding (always utf8 now)
+                        v = 'text/html; charset=UTF-8'
+                    self.set_header(k, v)
         self.finish()
 
 

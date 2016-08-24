@@ -76,6 +76,7 @@ class Response(Base):
     __tablename__ = 'responses'
 
     id = Column(Integer, primary_key=True)
+    code = Column(Integer)
     url = Column(Text)
     _headers = Column(Text)
     body = Column(LargeBinary)
@@ -86,17 +87,19 @@ class Response(Base):
         UniqueConstraint('page', 'url', name='_page_url'),
     )
 
-    def __init__(self, *, url: str, page: Page, headers: HTTPHeaders,
-                 body: bytes, is_main: bool):
+    def __init__(self, *, url: str, page: Page, code: int,
+                 headers: HTTPHeaders, body: bytes, is_main: bool):
         self.url = url
         self.page = page.id
-        self._headers = dump_headers(headers)
-        self.body = body
+        self.code = code
+        self._headers = dump_headers(headers) if headers else ''
+        self.body = body or b''
         self.is_main = is_main
 
     @property
     def headers(self):
-        return load_headers(self._headers)
+        if self._headers:
+            return load_headers(self._headers)
 
     def __repr__(self):
         return '<Response "{}">'.format(self.url)
@@ -118,11 +121,12 @@ def get_response(session, page: Page, url: str) -> Response:
         .one_or_none()
 
 
-def save_response(session, page: Page, url: str, response: HTTPResponse,
-                  is_main: bool) -> Response:
+def save_response(session, page: Page, url: str,
+                  response: HTTPResponse, is_main: bool) -> Response:
     response = Response(
         url=url,
         page=page,
+        code=response.code,
         headers=response.headers,
         body=response.body,
         is_main=is_main,
