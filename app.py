@@ -48,7 +48,7 @@ class WorkspaceListHandler(RequestHandler):
             workspace = session.query(Workspace).get(data['id'])
         else:
             workspace = Workspace()
-        workspace.name = data['name']
+        workspace.name = data.get('name', '')
         session.add(workspace)
         session.commit()
         workspace.update_labels(session, data['labels'])
