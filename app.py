@@ -184,7 +184,8 @@ class ProxyHandler(RequestHandler):
         response = get_response(session, page, url)
         if response is None:
             response = yield httpclient.fetch(url, raise_error=False)
-            save_response(session, page, url, response, is_main=referer is None)
+            response = save_response(
+                session, page, url, response, is_main=referer is None)
 
         proxy_url_base = self.reverse_url('proxy', ws.id)
 

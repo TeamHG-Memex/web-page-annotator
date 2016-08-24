@@ -119,15 +119,17 @@ def get_response(session, page: Page, url: str) -> Response:
 
 
 def save_response(session, page: Page, url: str, response: HTTPResponse,
-                  is_main: bool):
-    session.add(Response(
+                  is_main: bool) -> Response:
+    response = Response(
         url=url,
         page=page,
         headers=response.headers,
         body=response.body,
         is_main=is_main,
-    ))
+    )
+    session.add(response)
     try:
         session.commit()
     except IntegrityError:
         session.rollback()
+    return response

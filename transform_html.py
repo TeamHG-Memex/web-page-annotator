@@ -37,8 +37,11 @@ def transformed_response_body(
         return True, soup.encode()
     elif content_type.startswith('text/css'):
         css_source = body.decode('utf8', 'ignore')
-        return False, process_css(
-            css_source, base_uri=response.url, proxy_url=proxy_url).encode('utf8')
+        return (False, process_css(
+            css_source, base_uri=response.url, proxy_url=proxy_url)
+                .encode('utf8'))
+    else:
+        return False, body
 
 
 def remove_scripts_and_proxy(
