@@ -160,7 +160,8 @@ var Workspace = React.createClass({
                    onClick={ this.onPrevious }>
                     <i className="material-icons left">skip_previous</i>prev
                 </a>{' '}
-                <div className="chip url-chip">{ url || '-' }</div>{' '}
+                <div className="chip url-chip" onClick={ this.onUrlChipClick }>
+                    { url || '-' }</div>{' '}
                 <a className={ btnClasses(this.nextEnabled()) }
                    onClick={ this.onNext }>
                     <i className="material-icons right">skip_next</i>next
@@ -212,6 +213,10 @@ var Workspace = React.createClass({
     },
     onClose: function (event) {
         this.props.onClose({id: this.state.id, name: this.state.name});
+    },
+    onUrlChipClick: function (event) {
+        event.preventDefault();
+        selectText(event.target);
     },
     previousEnabled: function () {
         return this.state.urlIdx > 0;
@@ -427,5 +432,21 @@ var WorkspaceSettings = React.createClass({
         this.props.onWorkspaceDiscardEdit();
     }
 });
+
+
+function selectText(element) {
+    var range, selection;
+    if (document.body.createTextRange) {
+        range = document.body.createTextRange();
+        range.moveToElementText(element);
+        range.select();
+    } else if (window.getSelection) {
+        selection = window.getSelection();
+        range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+}
 
 ReactDOM.render(<App/>, document.getElementById('app'));

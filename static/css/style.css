@@ -6,6 +6,9 @@
     width: 20em;
     text-align: center;
     margin: 2px;
+    vertical-align: top;
+    overflow-x: hidden;
+    white-space: nowrap;
 }
 
 .label-dropdown {
