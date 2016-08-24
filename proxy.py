@@ -23,7 +23,7 @@ class ProxyHandler(RequestHandler):
             workspace=ws.id, url=referer or url).one()
 
         headers = self.request.headers.copy()
-        for field in ['cookie', 'referer']:
+        for field in ['cookie', 'referer', 'host']:
             try:
                 del headers[field]
             except KeyError:
@@ -31,10 +31,10 @@ class ProxyHandler(RequestHandler):
         if referer:
             headers['referer'] = referer
 
-        httpclient = AsyncHTTPClient()
         session = Session()
         response = get_response(session, page, url)
         if response is None:
+            httpclient = AsyncHTTPClient()
             response = yield httpclient.fetch(url, raise_error=False)
             response = save_response(
                 session, page, url, response, is_main=referer is None)
