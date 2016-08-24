@@ -68,8 +68,8 @@ def _process_attr(
     elif key == 'style' and val is not None:
         element.attrs[key] = process_css(val,  base_url, proxy_url)
     elif element.name in ('frame', 'iframe') and key == 'src':
-        # TODO - add this file, use reverse
-        element.attrs[key] = '/static/frames-not-supported.html'
+        # TODO - do it in a way that works for offline too
+        element.attrs[key] = '/static/iframes-not-supported.html'
     # Rewrite javascript URIs
     elif key in URI_ATTRIBUTES and val is not None:
         if _contains_js(unescape(val)):
