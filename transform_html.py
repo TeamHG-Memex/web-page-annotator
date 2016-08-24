@@ -37,7 +37,10 @@ def transformed_response_body(
         soup = BeautifulSoup(body, 'lxml', from_encoding=encoding)
         html_transform(
             soup, base_url=base_url, proxy_url=proxy_url)
-        return True, soup.encode()
+        head = soup.find('head')
+        if head:
+            head.append(soup.new_tag('meta', charset='utf8'))
+        return True, soup.encode('utf8')
     elif content_type.startswith('text/css'):
         css_source = body.decode('utf8', 'ignore')
         return (False, process_css(
