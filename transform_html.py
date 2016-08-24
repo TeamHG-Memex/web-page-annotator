@@ -30,7 +30,10 @@ def transformed_response_body(
     content_type = response.headers.get('content-type', '')
     if content_type.startswith('text/html'):
         encoding = http_content_type_encoding(content_type)
-        base_url = get_base_url(body, response.url, encoding)
+        try:
+            base_url = get_base_url(body, response.url, encoding)
+        except UnicodeDecodeError:
+            base_url = response.url
         soup = BeautifulSoup(body, 'lxml', from_encoding=encoding)
         html_transform(
             soup, base_url=base_url, proxy_url=proxy_url)
